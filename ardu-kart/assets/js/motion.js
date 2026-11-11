@@ -1,5 +1,6 @@
 // Modulino wheel: steering from the Modulino Movement, gestures classified by
-// the Edge Impulse model running on the UNO Q MCU, the Modulino Buttons and the
+// Edge Impulse (the App Lab Motion detection brick or a model on the UNO Q
+// MCU, chosen by Python: see controller.py), the Modulino Buttons and the
 // Pixels shift lights. Everything travels through the WebUI brick: the board
 // streams "imu" / "ml" / "btn" / "hw" to the Socket.IO room "motion".
 //
@@ -29,14 +30,16 @@ const EDGE_COOLDOWN_MS = 500;
 const DEG = Math.PI / 180;
 const DEFAULT_RANGE = 35 * DEG;
 const ONLINE_MS = 3000;
+const ML_STALE_MS = 1500;
+export const ENGINE_LABEL = { brick: 'MOTION DETECTION BRICK', mcu: 'MODEL ON THE MCU' };
 
 export function defaultAction(label) {
   const l = String(label).toLowerCase();
   if (/idle|noise|none|rest|still|background|unknown/.test(l)) return 'none';
   if (/brake|break|stop|slow/.test(l)) return 'brake';
-  if (/accel|gas|forward|throttle|^go$|faster/.test(l)) return 'accelerate';
-  if (/item|use|fire|throw|shoot|punch/.test(l)) return 'item';
-  if (/cam|view/.test(l)) return 'camera';
+  if (/accel|gas|forward|throttle|^go$|faster|updown|up_down|up-down/.test(l)) return 'accelerate';
+  if (/item|use|fire|throw|shoot|punch|wave/.test(l)) return 'item';
+  if (/cam|view|snake|circle/.test(l)) return 'camera';
   if (/back|look|behind/.test(l)) return 'lookBack';
   if (/drift|hop|jump/.test(l)) return 'drift';
   if (/pause|menu/.test(l)) return 'pause';
@@ -70,6 +73,7 @@ export class MotionController {
     this.hw = null;          // last hardware heartbeat (parsed by Python)
     this.hwAt = 0;
     this.installed = null;
+    this.engine = null;      // {pref, active: 'brick' | 'mcu' | null, labels, name, brick}
     this.owner = undefined;
     this.labels = [];
     this.probs = [];
@@ -117,7 +121,9 @@ export class MotionController {
 
   // ------------------------------------------------------------------ status
   get online() { return !!this.hw && performance.now() - this.hwAt < ONLINE_MS && !!this.hw.movement; }
-  get hasModel() { return !!(this.hw && this.hw.model); }
+  // a gesture model is running (brick or MCU)
+  get hasModel() { return this.engine ? !!this.engine.active : !!(this.hw && this.hw.model); }
+  get engineName() { return (this.engine && this.engine.name) || (this.hw && this.hw.name) || 'Edge Impulse'; }
   get owned() { return !!this.app.net.id && this.owner === this.app.net.id; }
   get calibrated() { return !!this.settings.cal; }
   // steering & gestures drive the kart only in the tab that owns the wheel
@@ -145,7 +151,12 @@ export class MotionController {
     if (st.hw) { this.hw = st.hw; this.hwAt = st.online ? performance.now() : 0; }
     this.installed = st.installed;
     if ('owner' in st) this.owner = st.owner;
-    if (this.hw && Array.isArray(this.hw.labels) && this.hw.labels.length) this.labels = this.hw.labels;
+    if (st.engine) {
+      if (this.engine && this.engine.active !== st.engine.active) this.probs = [];
+      this.engine = st.engine;
+    }
+    const labels = this.engine ? this.engine.labels : this.hw && this.hw.labels;
+    if (Array.isArray(labels) && labels.length) this.labels = labels;
     this._autoClaim();
     this._emit('status');
   }
@@ -166,6 +177,14 @@ export class MotionController {
 
   release() {
     if (this.owned) this.app.net.send('motion_claim', { release: true });
+  }
+
+  // 'auto' | 'brick' | 'mcu' (saved on the board, shared by every browser)
+  setEngine(engine) {
+    return this.app.net.request('motion_engine', { engine }).then((r) => {
+      if (r && r.ok) this._onStatus({ engine: r.engine });
+      return r;
+    });
   }
 
   // ------------------------------------------------------------------ steering
@@ -311,7 +330,7 @@ export class MotionController {
     if (Array.isArray(m.labels) && m.labels.length) this.labels = m.labels;
     this.probs = m.p;
     this.mlAt = performance.now();
-    this.timing = { dsp: m.dsp, nn: m.nn };
+    this.timing = { dsp: m.dsp, nn: m.nn, src: m.src };
     this._emit('ml');
     if (replay || !this.active) return;
     const th = this.settings.threshold;
@@ -445,8 +464,51 @@ export class MotionController {
     this._hudWheel = el('div', { class: 'mh-wheel' }, el('i'));
     this._hudLabel = el('div', { class: 'mh-label' });
     this._hudState = el('div', { class: 'mh-state' });
-    this._hud = el('div', { id: 'motion-hud', class: 'hidden' }, this._hudWheel, el('div', { class: 'mh-text' }, this._hudState, this._hudLabel));
+    this._hudEngine = el('div', { class: 'mh-engine' });
+    this._hudClasses = el('div', { class: 'mh-classes' });
+    this._hudKey = '';
+    this._hudMlAt = -1;
+    this._hud = el('div', { id: 'motion-hud', class: 'hidden' },
+      el('div', { class: 'mh-head' }, this._hudWheel, el('div', { class: 'mh-text' }, this._hudState, this._hudLabel)),
+      this._hudEngine, this._hudClasses);
     document.body.append(this._hud);
+  }
+
+  // live class probabilities (bottom-left while racing)
+  _updateClasses() {
+    const show = this.hasModel && this.labels.length > 0;
+    this._hudEngine.classList.toggle('hidden', !show);
+    this._hudClasses.classList.toggle('hidden', !show);
+    if (!show) return;
+    const key = this.labels.join('|') + '|' + this.settings.threshold + '|' + JSON.stringify(this.settings.map);
+    if (key !== this._hudKey) {
+      this._hudKey = key;
+      this._hudMlAt = -1;
+      const th = `${Math.round(this.settings.threshold * 100)}%`;
+      this._hudClasses.replaceChildren(...this.labels.map((label) => {
+        const act = this.actionFor(label);
+        return el('div', { class: 'mh-cls' + (act === 'none' ? ' idle' : '') },
+          el('span', { title: act !== 'none' ? `${label} → ${ACTION_LABEL[act] || act}` : label }, label),
+          el('div', {}, el('i'), el('u', { style: { left: th } })),
+          el('b', {}, '–'));
+      }));
+    }
+    const eng = this.engine && this.engine.active;
+    const head = `${ENGINE_LABEL[eng] || 'EDGE IMPULSE'} · ${this.engineName}`;
+    if (this._hudEngine.textContent !== head) this._hudEngine.textContent = head;
+    const stale = performance.now() - this.mlAt > ML_STALE_MS;
+    this._hudClasses.classList.toggle('stale', stale);
+    if (this.mlAt === this._hudMlAt) return;
+    this._hudMlAt = this.mlAt;
+    const p = this.probs;
+    let best = -1;
+    p.forEach((v, i) => { if (best < 0 || v > p[best]) best = i; });
+    [...this._hudClasses.children].forEach((row, i) => {
+      const v = p[i] || 0;
+      row.children[1].firstChild.style.width = `${(v * 100).toFixed(0)}%`;
+      row.children[2].textContent = `${Math.round(v * 100)}%`;
+      row.classList.toggle('top', i === best && v >= this.settings.threshold);
+    });
   }
 
   _flash(text) {
@@ -465,5 +527,6 @@ export class MotionController {
     const st = !this.hasModel ? 'AUTO-ACCEL · NO MODEL' : held('brake') ? 'BRAKE' : this.cruise ? 'CRUISE' : 'COAST · ACCELERATE!';
     if (this._hudState.textContent !== st) this._hudState.textContent = st;
     this._hudState.className = 'mh-state' + (held('brake') ? ' brake' : this.cruise || !this.hasModel ? ' on' : '');
+    this._updateClasses();
   }
 }

@@ -270,6 +270,16 @@ export class HUD {
 
   _standings(list) {
     const rowH = 34;
+    // big LAN fields: the top 3, then the karts around the player (8 rows max)
+    const slot = new Map();
+    if (list.length <= 8) list.forEach((k, i) => slot.set(i, i));
+    else {
+      const me = Math.max(0, list.indexOf(this.player));
+      const lo = Math.max(3, Math.min(me - 2, list.length - 5));
+      for (let i = 0; i < 3; i++) slot.set(i, i);
+      for (let i = lo; i < lo + 5; i++) slot.set(i, i - lo + 3);
+    }
+    this.elStand.classList.toggle('gap', list.length > 8 && slot.has(3) === false);
     list.forEach((k, i) => {
       let row = this.standRows.get(k.id);
       if (!row) {
@@ -284,7 +294,9 @@ export class HUD {
         this.standRows.set(k.id, row);
       }
       row.firstChild.textContent = i + 1;
-      row.style.transform = `translateY(${i * rowH}px)`;
+      const at = slot.get(i);
+      row.classList.toggle('off', at === undefined);
+      row.style.transform = `translateY(${(at === undefined ? (i < 3 ? 0 : 7) : at) * rowH + (at >= 3 && !slot.has(3) ? 6 : 0)}px)`;
       row.classList.toggle('fin', k.finished);
     });
   }

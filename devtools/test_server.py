@@ -1,4 +1,4 @@
-"""End-to-end test of q-kart/python/main.py against the real WebUI brick.
+"""End-to-end test of ardu-kart/python/main.py against the real WebUI brick.
 
 Starts the server as a subprocess (stub arduino package, debug LED endpoint),
 drives it with python-socketio clients and checks the protocol.
@@ -25,7 +25,7 @@ import socketio
 from fake_ei import FakeEI, LIB
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-APP = os.path.join(HERE, "..", "q-kart")
+APP = os.path.join(HERE, "..", "ardu-kart")
 
 
 def free_port():
@@ -34,7 +34,7 @@ def free_port():
         return s.getsockname()[1]
 
 
-PORT = int(os.environ.get("QKART_TEST_PORT", free_port()))
+PORT = int(os.environ.get("ARDUKART_TEST_PORT", free_port()))
 BASE = f"http://127.0.0.1:{PORT}"
 PASSED = []
 
@@ -162,8 +162,8 @@ def motion_tests(env, tmp):
                     ignore=shutil.ignore_patterns("libraries", "build"))
     key = "ei_" + "f00d" * 12
     ei = FakeEI(key).start()
-    env = dict(env, QKART_SIM_BOARD="1", QKART_APP_DIR=app_dir,
-               QKART_EI_STUDIO_URL=ei.url + "/v1/api", QKART_EI_INGEST_URL=ei.url)
+    env = dict(env, ARDUKART_SIM_BOARD="1", ARDUKART_APP_DIR=app_dir,
+               ARDUKART_EI_STUDIO_URL=ei.url + "/v1/api", ARDUKART_EI_INGEST_URL=ei.url)
     proc, logs = start_server(env)
     clients = []
     try:
@@ -230,7 +230,7 @@ def motion_tests(env, tmp):
         r = M1.call("ei_project", {"apiKey": "ei_" + "0" * 48})
         check(not r["ok"] and "rejected" in r["error"], "wrong API key reported")
         r = M1.call("ei_project", {"apiKey": key})
-        check(r["ok"] and r["project"]["id"] == 4242 and r["project"]["name"] == "Q-Kart wheel", "project info")
+        check(r["ok"] and r["project"]["id"] == 4242 and r["project"]["name"] == "Ardu Kart wheel", "project info")
         check(r["impulse"] == {"windowMs": 1000, "strideMs": 250, "hz": 62.5, "dsp": ["Spectral Analysis"], "learn": ["Classifier"]}, "impulse summary")
         r = M1.call("ei_upload", {"apiKey": key, "label": "idle", "category": "training", "interval": 16.0, "values": values})
         check(r["ok"] and r["samples"] == 62 and r["category"] == "training", "sample uploaded")
@@ -266,7 +266,7 @@ def motion_tests(env, tmp):
             cfg = f.read()
         with open(os.path.join(sk, "sketch.yaml")) as f:
             yml = f.read()
-        check("QKART_HAS_MODEL 1" in cfg and f"<{LIB}.h>" in cfg, "model_config.h points at the library")
+        check("ARDUKART_HAS_MODEL 1" in cfg and f"<{LIB}.h>" in cfg, "model_config.h points at the library")
         check(f"- dir: libraries/{LIB}" in yml and "Arduino_Modulino" in yml, "sketch.yaml lists the library")
         check(os.path.isfile(os.path.join(sk, "libraries", LIB, "src", LIB + ".h")), "library unpacked into the sketch")
         st = M1.call("motion_status")
@@ -275,10 +275,10 @@ def motion_tests(env, tmp):
         print("== manual model files")
         check(M1.call("model_remove")["ok"], "model removed")
         with open(os.path.join(sk, "model_config.h")) as f:
-            check("QKART_HAS_MODEL 0" in f.read() and not os.path.exists(os.path.join(sk, "libraries", LIB)), "sketch back to no model")
+            check("ARDUKART_HAS_MODEL 0" in f.read() and not os.path.exists(os.path.join(sk, "libraries", LIB)), "sketch back to no model")
         zip_b64 = "data:application/zip;base64," + base64.b64encode(ei.route("GET", "/v1/api/4242/deployment/download", {}, b"")[1]).decode()
         r = M1.call("model_upload", {"data": zip_b64})
-        check(r["ok"] and r["installed"]["name"] == "Q-Kart wheel" and r["installed"]["version"] == "1.0.3", "zip uploaded from the browser")
+        check(r["ok"] and r["installed"]["name"] == "Ardu Kart wheel" and r["installed"]["version"] == "1.0.3", "zip uploaded from the browser")
         r = M1.call("model_upload", {"data": base64.b64encode(b"not a zip").decode()})
         check(not r["ok"] and "zip" in r["error"], "non-zip refused")
         evil = io.BytesIO()
@@ -298,18 +298,127 @@ def motion_tests(env, tmp):
     return logs
 
 
+def brick_tests(env, tmp):
+    """App Lab Motion detection brick (stub) as the gesture engine, engine selection + persistence."""
+    print("== Motion detection brick (simulated)")
+    app_dir = os.path.join(tmp, "app-brick")
+    shutil.copytree(os.path.join(APP, "sketch"), os.path.join(app_dir, "sketch"),
+                    ignore=shutil.ignore_patterns("libraries", "build"))
+    data_dir = os.path.join(tmp, "brick-data")
+    base = dict(env, ARDUKART_SIM_BOARD="1", ARDUKART_SIM_BRICK="1", ARDUKART_APP_DIR=app_dir, ARDUKART_DATA_DIR=data_dir)
+    labels = ["idle", "accelerate", "brake", "use_item", "change_camera"]
+
+    # 1) sketch without a model: "auto" picks the brick
+    proc, logs = start_server(dict(base, ARDUKART_SIM_MODEL="0"))
+    M = None
+    try:
+        M = Client("MB").connect()
+        M.sio.emit("enter_room", "motion")
+        st = M.wait("hw", lambda d: d["online"] and d["engine"]["active"] == "brick", timeout=8)
+        eng = st["engine"]
+        check(eng["pref"] == "auto" and eng["labels"] == labels and eng["brick"]["state"] == "ready"
+              and eng["brick"]["axes"] == 6 and eng["brick"]["windowMs"] == 992, "auto engine: brick when the sketch has no model")
+        M.flush()
+        time.sleep(1.2)               # the window refills after the engine switch
+        sim(gesture="brake")
+        ml = M.wait("ml", lambda d: d["src"] == "brick" and max(d["p"]) == d["p"][2], timeout=4)
+        check(ml["labels"] == labels and ml["p"][2] > 0.8, "brick classifies the rolling window (brake)")
+        n = M.count("ml")
+        time.sleep(1.0)
+        check(3 <= M.count("ml") - n <= 6, f"brick results ~4x per second ({M.count('ml') - n}/s)")
+        m = mcu()
+        check(m.get("gesture", [None])[0] == 2 and m["gesture"][1] == "brake" and m.get("ml_engine") == [0],
+              "brick gesture sent to the MCU matrix, MCU model display off")
+        r = M.call("motion_engine", {"engine": "turbo"})
+        check(not r["ok"], "unknown engine refused")
+        r = M.call("motion_engine", {"engine": "mcu"})
+        check(r["ok"] and r["engine"]["active"] is None, "engine 'mcu' without an MCU model: no engine")
+        M.flush()
+        time.sleep(0.8)
+        check(M.count("ml") == 0, "no brick results while the MCU engine is selected")
+        r = M.call("motion_engine", {"engine": "brick"})
+        check(r["ok"] and r["engine"]["active"] == "brick", "engine 'brick' selected")
+        with open(os.path.join(data_dir, "motion.json")) as f:
+            check(json.load(f) == {"engine": "brick"}, "engine preference saved to the data folder")
+        M.close()
+    finally:
+        if M:
+            M.close()
+        stop_server(proc)
+
+    # 2) sketch with a model, preference "brick" kept across restarts
+    proc, logs2 = start_server(dict(base, ARDUKART_SIM_MODEL="1"))
+    M = None
+    try:
+        M = Client("MB2").connect()
+        M.sio.emit("enter_room", "motion")
+        st = M.wait("hw", lambda d: d["online"] and d["engine"]["active"] == "brick", timeout=8)
+        check(st["engine"]["pref"] == "brick", "preference restored after restart: brick over the MCU model")
+        M.flush()
+        time.sleep(1.8)
+        check(M.count("ml") > 0 and all(d["src"] == "brick" for e, d in M.events if e == "ml"), "MCU results dropped while the brick is active")
+        r = M.call("motion_engine", {"engine": "auto"})
+        check(r["ok"] and r["engine"]["active"] == "mcu" and r["engine"]["labels"] == labels, "auto engine: MCU model preferred when installed")
+        M.flush()
+        M.wait("ml", lambda d: d["src"] == "mcu", timeout=3)
+        time.sleep(0.3)
+        check(mcu().get("ml_engine") == [1], "MCU model display back on")
+        M.close()
+    finally:
+        if M:
+            M.close()
+        stop_server(proc)
+    return logs + logs2
+
+
+def big_lobby_tests():
+    print("== 20-player lobby")
+    players = [Client(f"P{i}").connect() for i in range(21)]
+    try:
+        joined = [p.call("lobby_join", {"name": f"Racer {i}", "character": i % 8}) for i, p in enumerate(players[:20])]
+        check(all(r == {"ok": True} for r in joined), "20 players join the lobby")
+        r = players[20].call("lobby_join", {"name": "Late", "character": 0})
+        check(r == {"ok": False, "reason": "lobby_full"}, "21st player rejected (lobby_full)")
+        check(led() == "lobby:20", "LED lobby:20")
+        players[0].call("lobby_settings", {"track": "test-track", "cc": 100, "laps": 1, "bots": True})
+        for p in players[1:20]:
+            p.call("lobby_update", {"ready": True})
+        players[20].flush()
+        check(players[0].call("lobby_start")["ok"], "20-player race starts")
+        rs = players[20].wait("race_start")
+        check(len(rs["grid"]) == 20 and not any(k["isBot"] for k in rs["grid"]), "grid of 20 humans, no CPU fill")
+        check(rs["netHz"] == 10, "big field: snapshots at 10 Hz")
+        for p in players[:20]:
+            p.sio.emit("enter_room", "race")
+        time.sleep(0.3)
+        players[5].flush()
+        t0 = time.time()
+        while time.time() - t0 < 2.0:
+            for i, p in enumerate(players[:20]):
+                p.sio.emit("state", {"karts": [{"id": p.sid, "lap": 1, "prog": i * 0.01, "x": float(i)}]})
+            time.sleep(0.1)
+        n = players[5].count("snapshot")
+        last = [d for e, d in players[5].events if e == "snapshot"][-1]
+        check(14 <= n <= 24 and len(last["karts"]) == 20, f"10 Hz snapshots with all 20 karts ({n} in 2 s)")
+        wait_led(lambda s: s.startswith("race:1:1:20") or s.startswith("count:"), timeout=3)
+        check(True, "LED shows 20 racers")
+    finally:
+        for p in players:
+            p.close()
+
+
 def main():
-    tmp = tempfile.mkdtemp(prefix="qkart-test-")
+    tmp = tempfile.mkdtemp(prefix="ardukart-test-")
     data_dir = os.path.join(tmp, "data")
     assets = os.path.join(APP, "assets")
     if not os.path.exists(os.path.join(assets, "index.html")):
-        # browser game not written yet: serve a temporary placeholder (outside q-kart)
+        # browser game not written yet: serve a temporary placeholder (outside ardu-kart)
         assets = os.path.join(tmp, "assets")
         os.makedirs(assets)
         with open(os.path.join(assets, "index.html"), "w") as f:
-            f.write("<!doctype html><title>Q-Kart placeholder</title>")
-    env = dict(os.environ, QKART_ASSETS=assets, QKART_DATA_DIR=data_dir,
-               QKART_PORT=str(PORT), QKART_DEBUG="1")
+            f.write("<!doctype html><title>Ardu Kart placeholder</title>")
+    env = dict(os.environ, ARDUKART_ASSETS=assets, ARDUKART_DATA_DIR=data_dir,
+               ARDUKART_PORT=str(PORT), ARDUKART_DEBUG="1")
     proc, logs = start_server(env)
     clients = []
     try:
@@ -343,6 +452,7 @@ def main():
         r = B.call("lobby_join", {"name": "Bob", "character": 5})
         check(r == {"ok": True}, "B joins lobby")
         lob = C.wait("lobby", lambda d: len(d["members"]) == 2)
+        check(lob["max"] == 20, "lobby advertises 20 player slots")
         check(lob["hostId"] == A.sid and lob["members"][0]["isHost"] and not lob["members"][1]["isHost"],
               "non-member C sees lobby broadcast, A is host")
         check(led() == "lobby:2", "LED lobby:2")
@@ -370,7 +480,8 @@ def main():
         check(all(b["owner"] == A.sid for b in bots) and [b["id"] for b in bots] == [f"bot{i}" for i in range(6)], "bots owned by host, ids bot0..")
         check(not ({b["character"] for b in bots} & {2, 6}) and len({b["character"] for b in bots}) == 6, "bots use untaken characters")
         check(rs["track"] == "test-track" and rs["cc"] == 150 and rs["laps"] == 2 and rs["hostId"] == A.sid
-              and 4000 < rs["startAt"] - time.time() * 1000 <= 5100 and isinstance(rs["seed"], int), "race_start payload")
+              and 4000 < rs["startAt"] - time.time() * 1000 <= 5100 and isinstance(rs["seed"], int)
+              and rs["netHz"] == 20, "race_start payload (20 Hz snapshots)")
         r = C.call("lobby_join", {"name": "Carol", "character": 1})
         check(r == {"ok": False, "reason": "race_in_progress"}, "join rejected during race")
         check(led() == "count:3", "LED count:3 during countdown")
@@ -484,9 +595,10 @@ def main():
         h = D.call("hello", {"name": "Dan"})
         check(h["records"]["tracks"]["test-track"]["laps"][0]["time"] == 25000, "records reloaded after restart")
         D.close()
+        big_lobby_tests()
     finally:
         stop_server(proc)
-    logs3 = motion_tests(env, tmp)
+    logs3 = motion_tests(env, tmp) + brick_tests(env, tmp)
     errors = [l for l in logs + logs2 + logs3 if "Traceback" in l or "ERROR" in l]
     check(not errors, "no server errors in logs" + ("" if not errors else ": " + "".join(errors)))
     shutil.rmtree(tmp, ignore_errors=True)

@@ -1,6 +1,6 @@
-// Headless check of the Motion Lab page and the wheel in the game (needs QKART_SIM_BOARD=1 QKART_DEBUG=1)
+// Headless check of the Motion Lab page and the wheel in the game (needs ARDUKART_SIM_BOARD=1 ARDUKART_DEBUG=1)
 const puppeteer = require('puppeteer-core');
-const BASE = process.env.QKART_URL || 'http://localhost:7123';
+const BASE = process.env.ARDUKART_URL || 'http://localhost:7123';
 const OUT = process.env.SHOTS || __dirname + '/shots';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sim = (q) => fetch(BASE + '/api/debug/sim?' + q).then((r) => r.text());
@@ -35,9 +35,15 @@ const sim = (q) => fetch(BASE + '/api/debug/sim?' + q).then((r) => r.text());
   const game = await browser.newPage(); watch(game, 'game');
   await game.setViewport({ width: 1600, height: 900 });
   await game.goto(BASE + '/', { waitUntil: 'load' });
-  await game.waitForFunction(() => window.qkart && window.qkart.motion && window.qkart.motion.online, { timeout: 30000 });
-  const st = () => game.evaluate(() => { const a = window.qkart, m = a.motion, k = a.race && a.race.player; return { online: m.online, owned: m.owned, active: m.active, steer: +m.steer.toFixed(2), cruise: m.cruise, screen: a.ui.screen && a.ui.screen.name, state: a.state, speed: k ? +k.speed.toFixed(1) : null, item: k ? k.item : null, cal: !!m.settings.cal }; });
+  await game.waitForFunction(() => window.ardukart && window.ardukart.motion && window.ardukart.motion.online, { timeout: 30000 });
+  const st = () => game.evaluate(() => { const a = window.ardukart, m = a.motion, k = a.race && a.race.player; return { online: m.online, owned: m.owned, active: m.active, steer: +m.steer.toFixed(2), cruise: m.cruise, screen: a.ui.screen && a.ui.screen.name, state: a.state, speed: k ? +k.speed.toFixed(1) : null, item: k ? k.item : null, cal: !!m.settings.cal }; });
   console.log('game motion:', JSON.stringify(await st()));
+  await game.evaluate(() => window.ardukart.ui.show('main'));
+  await sleep(900);
+  await game.screenshot({ path: OUT + '/game_main_menu.png' });
+  console.log('main menu buttons:', await game.$$eval('.menu-grid .btn .btn-label', (b) => b.map((x) => x.textContent).join(' | ')));
+  await game.evaluate(() => window.ardukart.ui.show('title', {}, { push: false }));
+  await sleep(500);
   await sim('button=0'); await sleep(800);
   console.log('after A on title:', JSON.stringify(await st()));
   await sim('tilt=0.5'); await sleep(800);
@@ -46,7 +52,7 @@ const sim = (q) => fetch(BASE + '/api/debug/sim?' + q).then((r) => r.text());
   console.log('tilt right:', JSON.stringify(await st()));
   await sim('tilt=0'); await sleep(600);
   // calibration wizard: START, hold straight, turn right
-  await game.evaluate(() => window.qkart.ui.show('motionCal'));
+  await game.evaluate(() => window.ardukart.ui.show('motionCal'));
   await sleep(500);
   await sim('button=0'); await sleep(2500);
   console.log('cal step:', await game.$eval('.cal-text h3', (e) => e.textContent));
@@ -58,28 +64,29 @@ const sim = (q) => fetch(BASE + '/api/debug/sim?' + q).then((r) => r.text());
   await sim('tilt=0.3'); await sleep(800);
   console.log('left 0.3 after cal:', JSON.stringify(await st()));
   await sim('tilt=0'); await sleep(500);
-  await game.evaluate(() => window.qkart.ui.show('motion'));
+  await game.evaluate(() => window.ardukart.ui.show('motion'));
   await sleep(1200);
   await game.screenshot({ path: OUT + '/game_motion_settings.png' });
   // race
-  await game.evaluate(() => window.qkart.startSolo({ mode: 'race', track: 'sunset', cc: 100, laps: 3 }));
+  await game.evaluate(() => window.ardukart.startSolo({ mode: 'race', track: 'sunset', cc: 100, laps: 3 }));
   await sleep(2500);
   await sim('gesture=accelerate'); await sleep(1500);
   console.log('accel in countdown:', JSON.stringify(await st()));
   await sleep(4500);
   console.log('racing:', JSON.stringify(await st()));
-  await game.evaluate(() => { const k = window.qkart.race.player; k.item = 'orb'; k.itemCount = 1; });
+  await game.evaluate(() => { const k = window.ardukart.race.player; k.item = 'orb'; k.itemCount = 1; });
   await sim('gesture=use_item'); await sleep(1500);
   console.log('after use_item:', JSON.stringify(await st()));
-  for (let i = 0; i < 3; i++) { await sleep(400); console.log('rev:', await (await fetch(BASE + '/api/debug/mcu')).text(), JSON.stringify(await game.evaluate(() => { const k = window.qkart.race.player; return [k.speed, k.maxSpeed]; }))); }
+  for (let i = 0; i < 3; i++) { await sleep(400); console.log('rev:', await (await fetch(BASE + '/api/debug/mcu')).text(), JSON.stringify(await game.evaluate(() => { const k = window.ardukart.race.player; return [k.speed, k.maxSpeed]; }))); }
   await sim('tilt=0.4'); await sleep(1000);
   await game.screenshot({ path: OUT + '/game_race_wheel.png' });
+  console.log('HUD classes:', await game.$$eval('#motion-hud .mh-cls', (r) => r.map((x) => x.textContent).join(' | ')), '| engine:', await game.$eval('#motion-hud .mh-engine', (e) => e.textContent));
   console.log('MCU:', await (await fetch(BASE + '/api/debug/mcu')).text());
   await sim('tilt=0&gesture=brake'); await sleep(1200);
   console.log('after brake:', JSON.stringify(await st()));
   await sim('button=2'); await sleep(600);
   console.log('after C (pause):', JSON.stringify(await st()));
-  await game.evaluate(() => { const m = window.qkart.motion; m.resetCalibration(); });
+  await game.evaluate(() => { const m = window.ardukart.motion; m.resetCalibration(); });
   console.log('ERRORS:', errs.length ? '\n' + errs.join('\n') : 'none');
   await browser.close();
 })();

@@ -5,4 +5,4 @@
 // Install a model from the Motion Lab page (/train.html) or with
 //   python3 python/model_installer.py path/to/ei-arduino-library.zip
 #pragma once
-#define QKART_HAS_MODEL 0
+#define ARDUKART_HAS_MODEL 0

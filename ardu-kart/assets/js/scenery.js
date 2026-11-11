@@ -233,7 +233,7 @@ export class Scenery {
     const tr = this.track;
     const msgs = [
       [['ARDUINO UNO Q', 'DUAL-BRAIN RACING'], '#008184'],
-      [['Q-KART', 'GRAND PRIX'], '#d62a6a'],
+      [['ARDU KART', 'GRAND PRIX'], '#d62a6a'],
       [['DRAGONWING', 'QRB2210 · 4× A53'], '#1f3a93'],
       [['EDGE AI', 'ON THE TRACK'], '#ff6a00'],
       [['STM32U585', 'LED MATRIX LIVE'], '#5b2bd1'],

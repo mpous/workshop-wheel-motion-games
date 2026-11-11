@@ -1,22 +1,23 @@
-# Q-Kart: a 3D kart racer served by the Arduino UNO Q
+# Ardu Kart: a 3D kart racer served by the Arduino UNO Q
 
-Q-Kart is an original arcade kart racer: 8 characters, 4 tracks, 9 items, drifting with mini-turbos, rocket starts, a Grand Prix with a podium, time trials with ghosts, and LAN multiplayer.
+Ardu Kart is an original arcade kart racer: 8 characters, 4 tracks, 9 items, drifting with mini-turbos, rocket starts, a Grand Prix with a podium, time trials with ghosts, and LAN multiplayer for up to 20 players.
 
 The UNO Q acts as the game server. Its Linux side (Python plus the WebUI brick) serves the game, runs the multiplayer lobby and keeps the track records. Its MCU drives the 8×13 LED matrix as a live race display. Every player runs the game in their own browser (WebGL) and connects to the board over Wi-Fi.
 
-**No joystick needed.** Mount the UNO Q on a wheel with three Modulinos and your hands become the controller. You tilt the wheel to steer. An Edge Impulse model running on the MCU recognises your gestures: *accelerate*, *brake*, *use item* and *change camera*. The board also has two web pages:
+**No joystick needed.** Mount the UNO Q on a wheel with three Modulinos and your hands become the controller. You tilt the wheel to steer. An Edge Impulse model recognises your gestures: *accelerate*, *brake*, *use item* and *change camera*, or any classes you train. The model runs either in the App Lab **Motion detection brick** on the Linux side (swap the model from App Lab, no recompiling) or on the MCU. The board also has two web pages:
 
 - **Motion Lab** (`/train.html`) shows the live sensor charts. From there you record gestures straight into your Edge Impulse project, train the model, deploy it and test it.
-- **The game** (`/`) is played with the wheel. You choose which gesture does what under **Settings → Motion controller**.
+- **The game** (`/`) is played with the wheel. Press **Train your motion controller** on the main menu to pick which gesture does what, choose the gesture engine and open the Motion Lab. While racing, the bottom-left HUD shows every detected class with its confidence in %.
 
 See [section 3](#3-the-modulino-wheel-motion-controller--edge-impulse).
 
 ```
 workshop-q-kart/
-├── q-kart/            ← the App Lab app (this is what goes on the UNO Q)
-│   ├── app.yaml       ← app metadata, uses the arduino:web_ui brick
+├── ardu-kart/            ← the App Lab app (this is what goes on the UNO Q)
+│   ├── app.yaml       ← app metadata, uses the arduino:web_ui and arduino:motion_detection bricks
 │   ├── python/        ← main.py: lobby, race relay, records, LED state
 │   │                     controller.py: Modulino wheel, Motion Lab, Edge Impulse API
+│   │                     brick_engine.py: gesture inference with the Motion detection brick
 │   │                     model_installer.py: installs an EI Arduino library into the sketch
 │   ├── sketch/        ← sketch.ino: LED matrix, Modulinos, on-device EI inference (MCU)
 │   └── assets/        ← the game (index.html) and the Motion Lab (train.html)
@@ -48,15 +49,16 @@ Steps:
 5. *(Optional)* Test multiplayer. The script prints a `Same network: http://192.168.x.x:7000` address. Open it on a second computer or phone on the same Wi-Fi (or in a second browser window). Pick **Multiplayer** on both, mark **Ready**, and the host presses **Start**.
 6. Stop the server with **Ctrl+C**.
 
-If port 7000 is busy, run `QKART_PORT=8080 ./run_local.sh` instead. When running locally, the LED-matrix sketch is not used; the Bridge calls are stubbed out.
+If port 7000 is busy, run `ARDUKART_PORT=8080 ./run_local.sh` instead. When running locally, the LED-matrix sketch is not used; the Bridge calls are stubbed out.
 
-**Try the wheel without hardware:** run `QKART_SIM_BOARD=1 QKART_DEBUG=1 ./run_local.sh`. This adds a simulated Modulino wheel that sways slowly and streams IMU data, class probabilities and button presses, so the Motion Lab at **http://localhost:7000/train.html** and the wheel screens in the game behave as they do on the board. You drive the simulated board from a second terminal:
+**Try the wheel without hardware:** run `ARDUKART_SIM_BOARD=1 ARDUKART_DEBUG=1 ./run_local.sh`. This adds a simulated Modulino wheel that sways slowly and streams IMU data, class probabilities and button presses, so the Motion Lab at **http://localhost:7000/train.html** and the wheel screens in the game behave as they do on the board. You drive the simulated board from a second terminal:
 ```bash
 curl "localhost:7000/api/debug/sim?tilt=0.4"           # radians, + = left, - = right
 curl "localhost:7000/api/debug/sim?gesture=accelerate"  # or brake, use_item, change_camera
 curl "localhost:7000/api/debug/sim?button=0"            # 0 = A, 1 = B, 2 = C
 curl "localhost:7000/api/debug/sim?auto=1"              # back to the slow sway
 ```
+Add `ARDUKART_SIM_BRICK=1` to simulate the Motion detection brick as well, and `ARDUKART_SIM_MODEL=0` to simulate a sketch without an MCU model, so the game uses the brick.
 
 ---
 
@@ -71,24 +73,27 @@ You'll need:
 
 ```bash
 cd ~/Documents/projects/EdgeImpulse/workshop-q-kart
-scp -r q-kart arduino@my-unoq.local:/home/arduino/ArduinoApps/
+scp -r ardu-kart arduino@my-unoq.local:/home/arduino/ArduinoApps/
 ```
 The password is the one you set during the board's setup.
+
+> [!NOTE]
+> The game used to be called Q-Kart. If the board still has the old app, stop it, copy its saved records and wheel settings over, and remove it so only one copy runs: `ssh arduino@my-unoq.local "cd /home/arduino/ArduinoApps && arduino-app-cli app stop user:q-kart; cp -rn q-kart/data ardu-kart/ 2>/dev/null; rm -rf q-kart"`. A model you installed with `model_installer.py` lives in the old app's sketch folder, so install it again into `ardu-kart`. A model downloaded for the Motion detection brick has to be selected again in the new app's brick configuration.
 
 ### Step 2: Start the app
 
 **Option A: from the terminal (SSH)**
 ```bash
 ssh arduino@my-unoq.local
-arduino-app-cli app start user:q-kart
+arduino-app-cli app start user:ardu-kart
 ```
 The first start compiles and flashes the LED-matrix sketch, which can take up to a minute. To check that it is running:
 ```bash
 arduino-app-cli app list
-arduino-app-cli app logs /home/arduino/ArduinoApps/q-kart --all
+arduino-app-cli app logs /home/arduino/ArduinoApps/ardu-kart --all
 ```
 
-**Option B: from the Arduino App Lab desktop app.** Connect to the board, open **My Apps**, select **Q-Kart**, and press **Run**.
+**Option B: from the Arduino App Lab desktop app.** Connect to the board, open **My Apps**, select **Ardu Kart**, and press **Run**.
 
 ### Step 3: Play
 
@@ -100,20 +105,20 @@ http://my-unoq.local:7000
 (or `http://<board-ip>:7000`)
 
 - The LED matrix shows the idle animation, then the lobby count, the countdown, and your lap and position during a race.
-- **Multiplayer:** everyone opens the same URL and picks **Multiplayer**. The first to join is the host, who chooses the track, class, laps and number of bots. Up to 8 karts race, and empty slots are filled with AI.
+- **Multiplayer:** everyone opens the same URL and picks **Multiplayer**. The first to join is the host, who chooses the track, class, laps and whether CPU rivals join. **Up to 20 players** race together. With CPU rivals on, smaller lobbies are filled with AI up to 8 karts. Above 10 players the board sends race updates at 10 Hz instead of 20 Hz to keep the Wi-Fi traffic down; remote karts are interpolated, so you won't notice.
 - Track records are saved on the board and shared by everyone who plays on it.
 
 ### Step 4: Stop the app
 
 ```bash
-arduino-app-cli app stop /home/arduino/ArduinoApps/q-kart
+arduino-app-cli app stop /home/arduino/ArduinoApps/ardu-kart
 ```
 
 ### Updating after you change the code
 
 ```bash
-scp -r q-kart arduino@my-unoq.local:/home/arduino/ArduinoApps/
-ssh arduino@my-unoq.local "arduino-app-cli app stop /home/arduino/ArduinoApps/q-kart; arduino-app-cli app start user:q-kart"
+scp -r ardu-kart arduino@my-unoq.local:/home/arduino/ArduinoApps/
+ssh arduino@my-unoq.local "arduino-app-cli app stop /home/arduino/ArduinoApps/ardu-kart; arduino-app-cli app start user:ardu-kart"
 ```
 Then hard-refresh the browser (Ctrl/Cmd + Shift + R).
 
@@ -126,10 +131,12 @@ Then hard-refresh the browser (Ctrl/Cmd + Shift + R).
 | "Offline" badge in the menus | The browser lost its Socket.IO connection to the board. Solo modes still work; reload to reconnect. |
 | Nothing on the LED matrix | The sketch is flashed when the app starts, so check `arduino-app-cli app logs ...` for compile errors. |
 | Motion Lab shows "board offline" or no Modulinos | Check the Qwiic cables. Modulinos are detected every 2.5 s, so you can plug them in while the app runs. |
-| The model is installed but the board still says "no model" | Restart the app. The model is only compiled into the sketch at start-up (see [3.4](#34-install-the-model-on-the-board)). If it is still missing, the compile failed, so check `arduino-app-cli app logs`. |
-| The wheel steers the wrong way or drifts | Run **Settings → Motion controller → Calibrate**, or use **Re-centre** while holding the wheel straight. |
+| The model is installed but the board still says "no model" | Restart the app. The model is only compiled into the sketch at start-up (see [3.4](#34-deploy-the-model-on-the-board)). If it is still missing, the compile failed, so check `arduino-app-cli app logs`. |
+| The wheel steers the wrong way or drifts | Run **Train your motion controller → Calibrate** (main menu), or use **Re-centre** while holding the wheel straight. |
+| The brick shows "not available" or keeps retrying | Pick a model in App Lab (Motion detection brick → Brick Configuration) and press Run again. The first start downloads the brick's container, which can take a few minutes. |
+| The game shows the wrong classes | Check **Gesture engine**. With *Auto*, an MCU model installed in the sketch wins over the brick; pick *Motion detection brick* to use the model chosen in App Lab. |
 | Gestures fire while you steer | Record more `idle` data while steering normally. You can also raise **Gesture confidence**. |
-| Two browsers both react to the wheel | Only one screen drives the wheel at a time. Press **Use the wheel on this screen** in Settings → Motion controller. |
+| Two browsers both react to the wheel | Only one screen drives the wheel at a time. Press **Use the wheel on this screen** on the *Train your motion controller* screen. |
 
 ---
 
@@ -162,41 +169,59 @@ You can do step 3 after uploading your first samples. The Motion Lab warns you i
 
 ### 3.3 Record, train and test in the Motion Lab
 
-Open **http://my-unoq.local:7000/train.html**, or press **Open Motion Lab** in the game's Settings → Motion controller.
+Open **http://my-unoq.local:7000/train.html**, or press **Train your motion controller → Train your gestures** on the game's main menu.
 
 1. **Edge Impulse project:** paste the API key and press **Connect**. The key goes to the board, which talks to Edge Impulse for you. It is remembered only in this browser, and only if you tick the box.
 2. **Record gestures:** pick a label. The default classes are `idle`, `accelerate`, `brake`, `use_item` and `change_camera`, but you can type any label. Choose a length and the dataset (Training, Testing, or Auto 80/20). Then press **Record**, button **A** on the wheel, or **R** on the keyboard. Recording starts after a 3-2-1 countdown, and the sample is uploaded when it finishes (or after you review it, if you choose *Review first*).
    - For each label, repeat the gesture continuously for the whole recording. Aim for at least 1 minute per class, for example six 10 s recordings.
    - Record plenty of **`idle`** while holding the wheel and steering normally, so steering never triggers a gesture.
    - Make the gestures distinct. For example: push the wheel forward to accelerate, pull it towards you to brake, do a quick up-down shake for the item, and give it a short twist out of plane to change the camera.
-3. **Train & deploy:** **Train + build + install** retrains the impulse, builds the Arduino library (EON compiler), downloads it and installs it into the app's sketch. You can follow each stage live in the job log. You can also run *Train* or *Build & install* on their own, or install a library `.zip` that you downloaded from Studio (**Deployment → Arduino library**).
-4. **Test the model:** shows the class probabilities computed on the STM32 four times per second, the top class, a history of hits and the DSP/NN timing. The confidence slider is shared with the game.
+3. **Train & deploy:** **Train the model** retrains the impulse in Edge Impulse. You can follow each stage live in the job log. Then deploy it in one of the two ways described in [3.4](#34-deploy-the-model-on-the-board).
+4. **Test the model:** shows the class probabilities four times per second, the top class, a history of hits and the DSP/NN timing, and which engine computed them. The confidence slider is shared with the game.
 
-### 3.4 Install the model on the board
+### 3.4 Deploy the model on the board
+
+There are two gesture engines. The game uses whichever is ready (the MCU model if the sketch has one, otherwise the brick), or the one you pick under **Gesture engine** in the Motion Lab or on the game's *Train your motion controller* screen.
+
+#### Option A: Motion detection brick (recommended)
+
+The app uses the App Lab `arduino:motion_detection` brick. It runs the Edge Impulse model (`.eim`) in its own container on the Linux side. The Python app streams the Modulino Movement samples to it and gets all class probabilities back, so any classes you trained show up in the game. You swap the model from App Lab, without recompiling the sketch:
+
+1. In Edge Impulse Studio open **Deployment** (the Motion Lab links to it), choose the target **Arduino UNO Q**, press **Build**, then **Go to Arduino**.
+2. In Arduino App Lab, open the Ardu Kart app and click the **Motion detection** brick. Under **AI models** press **Download** next to your project's model.
+3. In **Brick Configuration**, select that model and press **Save**. Then press **Run** (App Lab restarts the app).
+
+The Motion Lab header and the game's HUD then show the brick's model name and its classes. The brick needs the model to use the accelerometer (and optionally the gyroscope) axes of the Modulino Movement. The app resamples to the model's frequency and converts to m/s² and deg/s.
+
+#### Option B: model compiled into the MCU sketch
+
+**Build & install** in the Motion Lab builds the Arduino library (EON compiler), downloads it and installs it into the app's sketch. **Train + build + install** does everything in one go. You can also install a library `.zip` that you downloaded from Studio (**Deployment → Arduino library**) under *Manual model files*.
 
 The model is compiled into the MCU sketch, so after an install **restart the app**:
 ```bash
-arduino-app-cli app stop user:q-kart && arduino-app-cli app start user:q-kart
+arduino-app-cli app stop user:ardu-kart && arduino-app-cli app start user:ardu-kart
 ```
 (or press Stop and then Run in App Lab). The recompile takes 1–3 minutes. The Motion Lab then shows the model name in its header and the board starts classifying.
 
 You can also install a model from a terminal, on your computer before copying the app or on the board:
 ```bash
-python3 q-kart/python/model_installer.py ~/Downloads/my-project-arduino-1.0.0.zip
-python3 q-kart/python/model_installer.py --remove     # back to no model
+python3 ardu-kart/python/model_installer.py ~/Downloads/my-project-arduino-1.0.0.zip
+python3 ardu-kart/python/model_installer.py --remove     # back to no model
 ```
 
-Without a model the wheel still works. It steers, the buttons work, and the throttle stays down automatically.
+Without any model the wheel still works. It steers, the buttons work, and the throttle stays down automatically.
 
 ### 3.5 Play with the wheel
 
-Open the game, then go to **Settings → Motion controller**:
+Open the game and press **Train your motion controller** on the main menu:
 
 - **Calibrate**: hold the wheel straight, then turn it fully right. Two seconds, and it works with any mounting.
 - **Re-centre**: sets the current pose as straight ahead.
 - **Sensitivity / Deadzone / Invert steering / Tilt to navigate menus.**
 - **Gesture confidence**: the probability a class needs before it triggers.
 - **Gesture → action**: for every class your model outputs, choose *Accelerate, Brake, Use item, Change camera, Look back, Drift, Pause* or *Nothing*. Sensible defaults are picked from the label names.
+- **Gesture engine**: *Auto*, *Motion detection brick* or *MCU model*.
+- **Train your gestures** opens the Motion Lab.
 - A live dial and live class bars, so you can check everything before racing.
 
 | | Modulino wheel |
@@ -210,7 +235,7 @@ Open the game, then go to **Settings → Motion controller**:
 | Pause | button **C** |
 | Menus | A = OK, B = back, C = down; tilt left/right to change options. On the main menu: A Start, B Grand Prix, C LAN |
 
-The HUD in the bottom-left corner shows the wheel angle, the throttle state (CRUISE / COAST / BRAKE) and each recognised gesture. Keyboard, gamepad and touch keep working alongside the wheel. With several browsers on the LAN, only one screen drives the wheel. The game takes it automatically when it is free, and the Motion Lab takes it while it is open.
+The HUD in the bottom-left corner shows the wheel angle, the throttle state (CRUISE / COAST / BRAKE), the gesture engine and every class of your model with its confidence in % (the top class is highlighted, the yellow mark is the confidence threshold). Keyboard, gamepad and touch keep working alongside the wheel. With several browsers on the LAN, only one screen drives the wheel. The game takes it automatically when it is free, and the Motion Lab takes it while it is open.
 
 ---
 
@@ -241,18 +266,19 @@ These live in `devtools/`. You need Node 18+ and Chrome.
 ```bash
 ./run_local.sh && Ctrl+C          # once, to create devtools/.venv
 devtools/.venv/bin/pip install "python-socketio[client]" requests
-devtools/.venv/bin/python devtools/test_server.py   # 100 checks: protocol, wheel, Motion Lab, Edge Impulse (fake API)
+devtools/.venv/bin/python devtools/test_server.py   # 120+ checks: protocol, 20-player lobby, wheel, Motion Lab, brick, Edge Impulse (fake API)
 
 cd devtools && npm install        # puppeteer-core, three, esbuild
-QKART_PORT=7111 ../run_local.sh & # then:
+ARDUKART_PORT=7111 ../run_local.sh & # then:
 node game_shot.js basic           # menu screenshots  -> devtools/shots/
 node game_shot.js race            # mid-race screenshots
 node game_shot.js full            # full 1-lap race to the results screen
 node mp_test.js                   # two headless players race each other
-# with QKART_SIM_BOARD=1 QKART_DEBUG=1 QKART_PORT=7123 on the server:
+node mp_test.js 7111 12           # ... or up to 20 players
+# with ARDUKART_SIM_BOARD=1 ARDUKART_DEBUG=1 ARDUKART_PORT=7123 on the server:
 node lab_check.js                 # Motion Lab + wheel steering/gestures/calibration in the game
 ```
-`devtools/fake_ei.py` is an offline stand-in for the Edge Impulse API. Run it, then start the server with the `QKART_EI_STUDIO_URL` and `QKART_EI_INGEST_URL` values it prints, and the whole Motion Lab flow (upload, train, build, install) works without an account.
+`devtools/fake_ei.py` is an offline stand-in for the Edge Impulse API. Run it, then start the server with the `ARDUKART_EI_STUDIO_URL` and `ARDUKART_EI_INGEST_URL` values it prints, and the whole Motion Lab flow (upload, train, build, install) works without an account.
 
-To compile the sketch on your computer (arduino-cli 1.x): `arduino-cli compile --profile default -b arduino:zephyr:unoq q-kart/sketch`. On macOS, build from a folder in your home directory, not `/tmp`: `/tmp` is a symlink to `/private/tmp`, which breaks the detection of the local Edge Impulse library (`dir:` entries) and causes link errors.
+To compile the sketch on your computer (arduino-cli 1.x): `arduino-cli compile --profile default -b arduino:zephyr:unoq ardu-kart/sketch`. On macOS, build from a folder in your home directory, not `/tmp`: `/tmp` is a symlink to `/private/tmp`, which breaks the detection of the local Edge Impulse library (`dir:` entries) and causes link errors.
 (The screenshot scripts default to port 7111; pass a port as the last argument to change it.)

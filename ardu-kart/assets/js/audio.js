@@ -1,4 +1,4 @@
-// Q-Kart — fully procedural Web Audio engine (no audio files).
+// Ardu Kart — fully procedural Web Audio engine (no audio files).
 // Plain ES module, no dependencies. Every public method is a safe no-op when
 // Web Audio is unavailable or not yet unlocked.
 

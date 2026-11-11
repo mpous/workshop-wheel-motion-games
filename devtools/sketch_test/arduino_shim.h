@@ -2,6 +2,7 @@
 #pragma once
 #include <string>
 #include <cstdlib>
+#include <cctype>
 
 class String {
  public:
@@ -15,6 +16,11 @@ class String {
     size_t p = s_.find(ch, from);
     return p == std::string::npos ? -1 : (int)p;
   }
+  int indexOf(const char *w) const {
+    size_t p = s_.find(w ? w : "");
+    return p == std::string::npos ? -1 : (int)p;
+  }
+  void toLowerCase() { for (auto &c : s_) c = (char)std::tolower((unsigned char)c); }
   String substring(unsigned int from) const { return from >= s_.size() ? String("") : String(s_.substr(from)); }
   String substring(unsigned int from, unsigned int to) const {
     if (from > to) { unsigned int t = from; from = to; to = t; }

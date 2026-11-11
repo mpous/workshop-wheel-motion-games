@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run Q-Kart on this computer (no UNO Q needed).
+# Run Ardu Kart on this computer (no UNO Q needed).
 # First run creates devtools/.venv and installs the desktop dependencies.
 # Usage: ./run_local.sh            -> http://localhost:7000
-#        QKART_PORT=8080 ./run_local.sh
+#        ARDUKART_PORT=8080 ./run_local.sh
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$HERE/devtools/.venv"
@@ -22,11 +22,11 @@ if [ ! -x "$VENV/bin/python" ]; then
   "$VENV/bin/pip" install --quiet --upgrade pip
   "$VENV/bin/pip" install --quiet -r "$HERE/devtools/requirements-dev.txt"
 fi
-PORT="${QKART_PORT:-7000}"
+PORT="${ARDUKART_PORT:-7000}"
 IP="$( (ipconfig getifaddr en0 || hostname -I | awk '{print $1}') 2>/dev/null || true)"
 echo
-echo "  Q-Kart running:  http://localhost:$PORT"
+echo "  Ardu Kart running:  http://localhost:$PORT"
 [ -n "$IP" ] && echo "  Same network:   http://$IP:$PORT"
 echo "  Stop with Ctrl+C"
 echo
-QKART_PORT="$PORT" exec "$HERE/devtools/run_server.sh"
+ARDUKART_PORT="$PORT" exec "$HERE/devtools/run_server.sh"

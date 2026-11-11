@@ -2,11 +2,19 @@
 #
 #  MCU -> Python (Bridge notifications from sketch.ino)
 #    imu(ax, ay, az, gx, gy, gz)   g and deg/s, every sample (62.5 Hz by default)
-#    ml(probs_csv, dsp_ms, nn_ms)  Edge Impulse class probabilities (4 Hz)
+#    ml(probs_csv, dsp_ms, nn_ms)  class probabilities of the on-MCU model (4 Hz)
 #    btn(index, pressed)           Modulino Buttons A/B/C edges
 #    hw(info)                      "k=v;k=v" heartbeat every 2 s
 #  Python -> browsers (room "motion"): "imu", "ml", "btn", "hw"
 #  Browsers -> MCU: "rev" (Pixels shift lights), "ctl_leds" (button LEDs)
+#  Python -> MCU: "ml_engine" (1 = the MCU shows its own gestures), "gesture"
+#
+# Gestures come from one of two Edge Impulse engines (brick_engine.py):
+#  * "brick": the App Lab Motion detection brick on the Linux side. Its model
+#    is chosen in Arduino App Lab, no sketch rebuild needed.
+#  * "mcu": an Arduino library compiled into the sketch (Motion Lab "build").
+# The preference (auto / brick / mcu) is stored in the data folder; "auto"
+# uses the MCU model when the sketch has one, else the brick.
 #
 # There is one wheel per board: the game tab that drives with it "claims" it
 # (motion_claim) so other LAN players' browsers ignore it, and only the owner
@@ -30,9 +38,10 @@ import urllib.parse
 import urllib.request
 
 import model_installer
+from brick_engine import BrickEngine
 
-STUDIO_URL = os.environ.get("QKART_EI_STUDIO_URL", "https://studio.edgeimpulse.com/v1/api").rstrip("/")
-INGEST_URL = os.environ.get("QKART_EI_INGEST_URL", "https://ingestion.edgeimpulse.com").rstrip("/")
+STUDIO_URL = os.environ.get("ARDUKART_EI_STUDIO_URL", "https://studio.edgeimpulse.com/v1/api").rstrip("/")
+INGEST_URL = os.environ.get("ARDUKART_EI_INGEST_URL", "https://ingestion.edgeimpulse.com").rstrip("/")
 
 GRAVITY = 9.80665
 IMU_BATCH = 2                    # samples per "imu" message (~31 msg/s at 62.5 Hz)
@@ -47,6 +56,9 @@ SENSORS = [("accX", "m/s2"), ("accY", "m/s2"), ("accZ", "m/s2"),
            ("gyrX", "dps"), ("gyrY", "dps"), ("gyrZ", "dps")]
 LABEL_RE = re.compile(r"^[A-Za-z0-9_\-. ]{1,64}$")
 API_KEY_RE = re.compile(r"^ei_[A-Za-z0-9]{16,128}$")
+ENGINES = ("auto", "brick", "mcu")
+GESTURE_CONFIDENCE = 0.7         # MCU matrix / Pixels flashes for brick results (same as the sketch)
+IDLE_RE = re.compile(r"idle|noise|none|rest|still|background|unknown", re.I)
 
 
 def _now_ms():
@@ -125,9 +137,15 @@ def _ei_request(method, url, api_key, body=None, raw=False, headers=None):
 
 
 class MotionHub:
-    def __init__(self, ui, bridge):
+    def __init__(self, ui, bridge, data_dir=None):
         self.ui = ui
         self.bridge = bridge
+        self.prefs_path = os.path.join(data_dir, "motion.json") if data_dir else None
+        self.engine_pref = self._load_pref()
+        self.brick = BrickEngine(self._on_brick_ml, self._on_brick_state)
+        self._active = None           # engine whose results are published
+        self._ml_engine_sent = None
+        self._gesture_at = {}         # class -> monotonic time of the last MCU flash
         self.lock = threading.Lock()
         self.hw = None
         self.hw_at = 0.0
@@ -157,6 +175,9 @@ class MotionHub:
                 if len(rec["values"]) >= rec["need"]:
                     done.append((sid, self.recordings.pop(sid)))
             interval = self.hw["interval"] if self.hw else 16.0
+            use_brick = self._active == "brick"
+        if use_brick:
+            self.brick.push(s, interval)
         if send:
             self.ui.send_message("imu", {"s": send, "i": interval}, room="motion")
         for sid, rec in done:
@@ -170,10 +191,117 @@ class MotionHub:
         except ValueError:
             return
         with self.lock:
+            if self._active != "mcu":
+                return                # the MCU model is installed but the brick is in use
             labels = (self.hw or {}).get("labels") or [f"class {i}" for i in range(len(p))]
-            self.last_ml = {"labels": labels, "p": p, "dsp": int(dsp_ms), "nn": int(nn_ms), "t": _now_ms()}
+        self._publish_ml(labels, p, dsp_ms, nn_ms, "mcu")
+
+    def _publish_ml(self, labels, p, dsp_ms, nn_ms, src):
+        with self.lock:
+            self.last_ml = {"labels": labels, "p": p, "dsp": int(dsp_ms), "nn": int(nn_ms), "t": _now_ms(), "src": src}
             msg = dict(self.last_ml)
         self.ui.send_message("ml", msg, room="motion")
+
+    # ------------------------------------------------------------- engines
+
+    def _load_pref(self):
+        try:
+            with open(self.prefs_path, encoding="utf-8") as f:
+                v = json.load(f).get("engine")
+            return v if v in ENGINES else "auto"
+        except (OSError, ValueError, TypeError, AttributeError):
+            return "auto"
+
+    def _save_pref(self):
+        if not self.prefs_path:
+            return
+        try:
+            os.makedirs(os.path.dirname(self.prefs_path), exist_ok=True)
+            tmp = self.prefs_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"engine": self.engine_pref}, f)
+            os.replace(tmp, self.prefs_path)
+        except OSError as e:
+            print(f"[Ardu Kart] cannot save {self.prefs_path}: {e}")
+
+    def _pick_engine(self):
+        """Engine whose results drive the game. Call with the lock held."""
+        mcu = bool(self.hw and self.hw.get("model") and self.board_online())
+        brick = self.brick.ready
+        pref = self.engine_pref
+        if pref == "mcu":
+            return "mcu" if mcu else None
+        if pref == "brick":
+            return "brick" if brick else None
+        return "mcu" if mcu else "brick" if brick else None
+
+    def _refresh_engine(self):
+        """Re-evaluate the active engine; tells browsers and the MCU when it changes."""
+        with self.lock:
+            active = self._pick_engine()
+            changed = active != self._active
+            self._active = active
+            if changed:
+                self.last_ml = None
+        if changed:
+            if active == "brick":
+                self.brick.flush()
+            self._send_ml_engine(force=True)
+            self.ui.send_message("hw", self.status_payload(), room="motion")
+        return changed
+
+    def _send_ml_engine(self, force=False):
+        v = 1 if self._active == "mcu" else 0
+        if force or v != self._ml_engine_sent:
+            self._ml_engine_sent = v
+            self._notify("ml_engine", v)
+
+    def _on_brick_state(self):
+        if not self._refresh_engine():
+            self.ui.send_message("hw", self.status_payload(), room="motion")
+
+    def _on_brick_ml(self, labels, probs, dsp_ms, nn_ms):
+        with self.lock:
+            if self._active != "brick":
+                return
+        self._publish_ml(labels, probs, dsp_ms, nn_ms, "brick")
+        # same local effects as the on-MCU model: icon on the matrix, colour flash on the Pixels
+        if not probs:
+            return
+        best = max(range(len(probs)), key=lambda i: probs[i])
+        label = labels[best]
+        if probs[best] < GESTURE_CONFIDENCE or IDLE_RE.search(label):
+            return
+        t = time.monotonic()
+        if t - self._gesture_at.get(best, 0) < 0.9:
+            return
+        self._gesture_at[best] = t
+        self._notify("gesture", best, label[:24], int(probs[best] * 100))
+
+    def engine_status(self):
+        with self.lock:
+            active = self._active
+            hw = self.hw or {}
+        b = self.brick.status()
+        if active == "brick":
+            labels, name = b.get("labels") or [], b.get("name", "")
+        elif active == "mcu":
+            labels, name = hw.get("labels") or [], hw.get("name", "")
+        else:
+            labels, name = [], ""
+        return {"pref": self.engine_pref, "active": active, "labels": labels, "name": name, "brick": b}
+
+    def on_engine(self, sid, data):
+        data = data if isinstance(data, dict) else {}
+        pref = data.get("engine")
+        if pref not in ENGINES:
+            return {"ok": False, "error": "engine must be auto, brick or mcu"}
+        with self.lock:
+            self.engine_pref = pref
+        self._save_pref()
+        if not self._refresh_engine():
+            self.ui.send_message("hw", self.status_payload(), room="motion")
+        return {"ok": True, "engine": self.engine_status()}
 
     def on_btn(self, index, pressed):
         try:
@@ -190,7 +318,9 @@ class MotionHub:
             self.hw, self.hw_at = info, time.time()
             if first:
                 self.leds = None      # MCU (re)started: resend the button LEDs
-        self.ui.send_message("hw", self.status_payload(), room="motion")
+        if not self._refresh_engine():
+            self.ui.send_message("hw", self.status_payload(), room="motion")
+        self._send_ml_engine(force=True)   # heartbeat: survives an MCU reset
 
     # ------------------------------------------------------------- status
 
@@ -208,7 +338,7 @@ class MotionHub:
         # the board runs another model than the one on disk: a restart is pending or the compile failed
         mismatch = online and not hw.get("sim") and bool(installed) != running
         return {"online": online, "hw": hw, "installed": installed, "restartNeeded": changed or mismatch,
-                "job": job, "owner": self.owner}
+                "job": job, "owner": self.owner, "engine": self.engine_status()}
 
     def on_status(self, sid, data):
         st = self.status_payload()
@@ -277,11 +407,15 @@ class MotionHub:
         try:
             self.bridge.notify(name, *args)
         except Exception as e:
-            print(f"[Q-Kart] Bridge notify {name} failed: {e}")
+            print(f"[Ardu Kart] Bridge notify {name} failed: {e}")
 
     def tick(self):
         """Called from the main 20 Hz loop."""
         self.flush_rev()
+        with self.lock:
+            stale = self._active == "mcu" and not self.board_online()
+        if stale:
+            self._refresh_engine()
 
     # ------------------------------------------------------------- recording
 
@@ -525,10 +659,12 @@ class MotionHub:
         ui.on_message("ei_job", self.on_ei_job)
         ui.on_message("model_upload", self.on_model_upload)
         ui.on_message("model_remove", self.on_model_remove)
+        ui.on_message("motion_engine", self.on_engine)
+        self.brick.start()
         try:
             self.bridge.provide("imu", self.on_imu)
             self.bridge.provide("ml", self.on_ml)
             self.bridge.provide("btn", self.on_btn)
             self.bridge.provide("hw", self.on_hw)
         except Exception as e:  # running without the router (local development)
-            print(f"[Q-Kart] Bridge unavailable, motion controller disabled: {e}")
+            print(f"[Ardu Kart] Bridge unavailable, motion controller disabled: {e}")

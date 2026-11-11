@@ -15,7 +15,7 @@ import { CHARACTERS, buildKart } from './kartModel.js';
 
 const NAMES = ['Turbo Tofu', 'Nitro Noodle', 'Captain Drift', 'Pixel Pete', 'Volt Viper', 'Sprocket', 'Zippy Zara', 'Gizmo Gus', 'Rocket Rosa', 'Comet Cleo'];
 const BOT_COUNT = 7;
-const SNAPSHOT_DELAY = 110; // ms of interpolation delay for remote karts
+const NET_HZ = 20; // snapshot rate; the server halves it for fields of more than 10 players
 
 export class Race {
   constructor(app, opts) {
@@ -45,6 +45,8 @@ export class Race {
     this.eventLog = [];
     this.rng = makeRng(opts.seed || 1234);
     this.sendAcc = 0;
+    this.netHz = opts.netHz || NET_HZ;
+    this.snapDelay = 2000 / this.netHz + 10; // ms of interpolation delay for remote karts (~2 snapshots)
     this.soloAcc = 0;
     this.lastCount = null;
     this.camMode = 0;
@@ -122,7 +124,7 @@ export class Race {
   }
 
   _setupGhost() {
-    const key = 'qkart.ghost.' + this.def.id;
+    const key = 'ardukart.ghost.' + this.def.id;
     this.ghostRec = [];
     this.ghostAcc = 0;
     try {
@@ -335,7 +337,7 @@ export class Race {
     }
     // remote karts
     if (this.mode === 'mp') {
-      const rt = app.net.now() - SNAPSHOT_DELAY;
+      const rt = app.net.now() - this.snapDelay;
       for (const k of this.karts) if (!k.local) k.interpolate(rt, dt);
     }
     this._collisions(dt);
@@ -371,7 +373,7 @@ export class Race {
     // network
     if (this.mode === 'mp') {
       this.sendAcc += dt;
-      if (this.sendAcc >= 0.05) {
+      if (this.sendAcc >= 1 / this.netHz) {
         this.sendAcc = 0;
         app.net.send('state', { karts: this.localKarts().map((k) => k.serialize()) });
       }
@@ -459,7 +461,7 @@ export class Race {
 
   _standings() {
     const list = [...this.karts].sort((a, b) => {
-      if (a.finished && b.finished) return a.finishTime - b.finishTime;
+      if (a.finished && b.finished) return (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity) || 0;
       if (a.finished) return -1;
       if (b.finished) return 1;
       return b.totalIdx - a.totalIdx;
@@ -599,7 +601,7 @@ export class Race {
 
   saveGhostIfBest() {
     if (this.mode !== 'tt' || !this.player.finished) return false;
-    const key = 'qkart.ghost.' + this.def.id;
+    const key = 'ardukart.ghost.' + this.def.id;
     const prev = this.ghostData;
     if (!prev || this.player.finishTime < prev.time) {
       try {

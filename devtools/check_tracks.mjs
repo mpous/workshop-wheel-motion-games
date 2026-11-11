@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TRACKS } from '../q-kart/assets/js/tracks.js';
+import { TRACKS } from '../ardu-kart/assets/js/tracks.js';
 import fs from 'fs';
 let svg = '';
 const W = 520;

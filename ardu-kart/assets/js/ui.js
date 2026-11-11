@@ -8,6 +8,12 @@ import { TRACKS, CC } from './tracks.js';
 import { CHARACTERS } from './kartModel.js';
 import { ACTIONS, DEFAULT_LABELS } from './motion.js';
 
+const ENGINES = [
+  { value: 'auto', label: 'AUTO' },
+  { value: 'brick', label: 'APP LAB BRICK' },
+  { value: 'mcu', label: 'MODEL ON THE MCU' },
+];
+
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 export const GP_POINTS = [15, 12, 10, 8, 6, 4, 2, 1];
 
@@ -224,7 +230,7 @@ export class UI {
     const s = this.app.settings;
     const node = el('div', {},
       el('div', { class: 'logo' },
-        el('div', { class: 'logo-q' }, 'Q'),
+        el('div', { class: 'logo-ardu' }, 'ARDU'),
         el('div', { class: 'logo-kart' }, 'KART'),
         el('div', { class: 'logo-sub' }, 'RACING ON THE ARDUINO UNO Q')),
       this.btn('PRESS START', () => this.app.startPressed(), { cls: 'start-btn pulse', attrs: { autofocus: '' } }),
@@ -241,14 +247,19 @@ export class UI {
     const mp = a.net.connected;
     const lob = a.net.lobby;
     const node = el('div', {},
-      el('div', { class: 'logo small' }, el('div', { class: 'logo-q' }, 'Q'), el('div', { class: 'logo-kart' }, 'KART')),
+      el('div', { class: 'logo small' }, el('div', { class: 'logo-ardu' }, 'ARDU'), el('div', { class: 'logo-kart' }, 'KART')),
       el('div', { class: 'menu-grid' },
         this.btn('GRAND PRIX', () => this.show('chars', { next: 'gp' }), { cls: 'big gp', icon: '🏆', sub: '4 tracks · points · podium', attrs: { autofocus: '' } }),
         this.btn('QUICK RACE', () => this.show('chars', { next: 'race' }), { cls: 'big', icon: '🏁', sub: 'One race vs 7 rivals' }),
         this.btn('TIME TRIAL', () => this.show('chars', { next: 'tt' }), { cls: 'big', icon: '⏱', sub: 'Beat your ghost' }),
         this.btn('MULTIPLAYER', () => (mp ? this.show('chars', { next: 'mp' }) : this.toast('Not connected to the UNO Q server', 'warn')), {
           cls: 'big mp' + (mp ? '' : ' dim'), icon: '📡',
-          sub: mp ? `LAN · ${lob ? lob.members.length : 0}/8 in lobby${lob && lob.racing ? ' · racing' : ''}` : 'Server offline',
+          sub: mp ? `LAN · ${lob ? lob.members.length : 0}/${(lob && lob.max) || 20} in lobby${lob && lob.racing ? ' · racing' : ''}` : 'Server offline',
+        }),
+        this.btn('TRAIN YOUR MOTION CONTROLLER', () => this.show('motion'), {
+          cls: 'motion-main', icon: '🎡',
+          sub: a.motion.online ? `Wheel connected · ${a.motion.hasModel ? 'model running' : 'no model yet'}`
+            : 'Modulino wheel · record gestures · train with Edge Impulse',
         }),
         this.btn('RECORDS', () => this.show('records'), { icon: '📜' }),
         this.btn('SETTINGS', () => this.show('settings'), { icon: '⚙' }),
@@ -365,9 +376,13 @@ export class UI {
       const me = lob.members.find((m) => m.id === net.id);
       const isHost = lob.hostId === net.id;
       list.innerHTML = '';
-      for (let i = 0; i < 8; i++) {
+      // 8 slots, growing with the lobby (one open slot) up to the server's limit
+      const max = lob.max || 20;
+      const slots = Math.min(max, Math.max(8, lob.members.length + 1));
+      list.classList.toggle('many', slots > 8);
+      for (let i = 0; i < slots; i++) {
         const m = lob.members[i];
-        if (!m) { list.append(el('div', { class: 'lobby-slot empty' }, el('span', { class: 'ls-n' }, i + 1), el('span', {}, lob.settings.bots ? 'CPU' : 'Open'))); continue; }
+        if (!m) { list.append(el('div', { class: 'lobby-slot empty' }, el('span', { class: 'ls-n' }, i + 1), el('span', {}, lob.settings.bots && i < 8 ? 'CPU' : 'Open'))); continue; }
         const ch = CHARACTERS[m.character % 8];
         list.append(el('div', { class: 'lobby-slot' + (m.id === net.id ? ' me' : ''), style: { '--c': hex(ch.color) } },
           el('span', { class: 'ls-n' }, i + 1),
@@ -417,7 +432,7 @@ export class UI {
       if (net.lobby && net.lobby.racing) return;
       const r = await net.request('lobby_join', { name: a.settings.name, character: a.settings.character });
       if (r && r.ok) { joined = true; a.audio.play('itemGet'); }
-      else this.toast(r ? ({ lobby_full: 'Lobby is full (8 players)', race_in_progress: 'A race is in progress' }[r.reason] || r.reason) : 'No response from the UNO Q', 'warn');
+      else this.toast(r ? ({ lobby_full: `Lobby is full (${(net.lobby && net.lobby.max) || 20} players)`, race_in_progress: 'A race is in progress' }[r.reason] || r.reason) : 'No response from the UNO Q', 'warn');
     };
     const leave = () => { net.request('lobby_leave', {}); joined = false; };
     node.append(
@@ -447,10 +462,10 @@ export class UI {
 
   _results({ rows, mode, title, gp, trackName, onContinue, newRecord, ghostSaved }) {
     const a = this.app;
-    const table = el('div', { class: 'res-table' });
+    const table = el('div', { class: 'res-table' + (rows.length > 10 ? ' many' : '') });
     rows.forEach((r, i) => {
       const ch = CHARACTERS[r.character % 8];
-      const row = el('div', { class: 'res-row' + (r.isPlayer || r.id === a.net.id ? ' me' : '') + (r.place <= 3 ? ' top' + r.place : ''), style: { '--c': hex(ch.color), animationDelay: i * 0.07 + 's' } },
+      const row = el('div', { class: 'res-row' + (r.isPlayer || r.id === a.net.id ? ' me' : '') + (r.place <= 3 ? ' top' + r.place : ''), style: { '--c': hex(ch.color), animationDelay: Math.min(i, 10) * 0.07 + 's' } },
         el('span', { class: 'res-place' }, ordinal(r.place)),
         el('img', { src: a.portraits[ch.id] || '' }),
         el('span', { class: 'res-name' }, r.name, r.isBot ? el('em', {}, ' CPU') : null),
@@ -558,7 +573,6 @@ export class UI {
         this.selector('AUTO-ACCELERATE', [{ value: false, label: 'OFF' }, { value: true, label: 'ON' }], !!s.autoAccel, (v) => { s.autoAccel = v; a.input.autoAccel = v; a.saveSettings(); }),
         this.selector('TOUCH CONTROLS', [{ value: 'auto', label: 'AUTO' }, { value: 'on', label: 'ALWAYS' }, { value: 'off', label: 'OFF' }], s.touch || 'auto', (v) => { s.touch = v; a.saveSettings(); a.updateTouch(); }),
         this.selector('SHOW FPS', [{ value: false, label: 'OFF' }, { value: true, label: 'ON' }], !!s.fps, (v) => { s.fps = v; a.saveSettings(); }),
-        this.btn('MOTION CONTROLLER', () => this.show('motion'), { cls: 'small motion-link', icon: '🎡', sub: a.motion.online ? 'Modulino wheel connected' : 'Modulino wheel · Edge Impulse' }),
         this.btn('RESET GHOSTS & LOCAL TIMES', () => { a.clearLocalData(); this.toast('Local data cleared'); }, { cls: 'danger small' })),
       this.footer([['back', 'Back']]));
     return node;
@@ -579,7 +593,7 @@ export class UI {
         el('div', { class: 'help-col' }, el('h3', {}, 'MODULINO WHEEL'),
           row('Turn', 'Steer'), row('Gestures', 'Accelerate, brake, item, camera'), row('A', 'Hop & drift (hold)'),
           row('B', 'Use item'), row('C', 'Pause'), row('Menus', 'A Start · B Grand Prix · C LAN'),
-          el('p', { class: 'help-note' }, 'Map the Edge Impulse classes to actions in Settings → Motion controller.')),
+          el('p', { class: 'help-note' }, 'Map the Edge Impulse classes to actions in Train your motion controller (main menu).')),
         el('div', { class: 'help-col' }, el('h3', {}, 'PRO TIPS'),
           el('p', {}, 'Hold drift through corners: sparks go blue → orange → purple. Release for a mini-turbo.'),
           el('p', {}, 'Hit accelerate right as the countdown shows 1 for a rocket start. Hold it from 3 and you stall! On the wheel, do the accelerate gesture on 1.'),
@@ -612,12 +626,16 @@ export class UI {
         ownBtn.classList.add('hidden');
         return;
       }
+      const eng = m.engine || {};
+      const brick = eng.brick || {};
       status.append(
         chip(hw.movement, 'Movement'), chip(hw.buttons, 'Buttons'), chip(hw.pixels, 'Pixels'),
-        chip(m.hasModel, m.hasModel ? `Model: ${hw.name || 'Edge Impulse'}` : 'No model on the board'),
+        chip(m.hasModel, m.hasModel ? `${eng.active === 'brick' ? 'Brick' : 'MCU'} model: ${m.engineName}` : 'No gesture model running'),
         el('div', { class: 'mo-hint' },
           m.owned ? 'This screen drives the wheel.' : m.owner ? 'Another screen is driving the wheel.' : 'The wheel is free.',
-          m.hasModel ? '' : ' Train one in the Motion Lab — until then the wheel keeps the throttle down for you.',
+          m.hasModel ? '' : eng.pref && eng.pref !== 'auto' ? ` The ${eng.pref === 'brick' ? 'Motion detection brick' : 'MCU model'} is not available — pick AUTO or another engine.`
+            : ' Train one in the Motion Lab — until then the wheel keeps the throttle down for you.',
+          brick.state === 'error' ? ` Brick: ${brick.error}` : '',
           hw.sim ? ' (simulated board)' : ''));
       ownBtn.classList.toggle('hidden', m.owned || ms.enabled === 'off');
     };
@@ -655,6 +673,8 @@ export class UI {
       this.header('MOTION CONTROLLER', 'Modulino wheel · Edge Impulse'),
       el('div', { class: 'mo-layout' },
         el('div', { class: 'settings-list' },
+          this.btn('TRAIN YOUR GESTURES', () => window.open('train.html', '_blank'), { cls: 'motion-link mo-train', icon: '🧪', sub: 'Motion Lab: record, train with Edge Impulse, deploy', attrs: { autofocus: '' } }),
+          this.selector('GESTURE ENGINE', ENGINES, (m.engine && m.engine.pref) || 'auto', (v) => m.setEngine(v).then((r) => { if (!r || !r.ok) this.toast('Could not change the engine', 'warn'); })),
           this.selector('WHEEL', [{ value: 'auto', label: 'ON WHEN CONNECTED' }, { value: 'off', label: 'OFF' }], ms.enabled, (v) => { ms.enabled = v; save(); if (v === 'off') m.release(); else m.claim(false); renderStatus(); }),
           el('div', { class: 'mo-row' },
             this.btn('CALIBRATE', () => this.show('motionCal'), { cls: 'small', icon: '🎯' }),
@@ -664,8 +684,7 @@ export class UI {
           this.selector('INVERT STEERING', [{ value: false, label: 'OFF' }, { value: true, label: 'ON' }], !!ms.invert, (v) => { ms.invert = v; save(); }),
           this.selector('TILT TO NAVIGATE MENUS', [{ value: true, label: 'ON' }, { value: false, label: 'OFF' }], ms.menuTilt !== false, (v) => { ms.menuTilt = v; save(); }),
           this.slider('GESTURE CONFIDENCE', ms.threshold, (v) => { ms.threshold = clamp(v, 0.3, 0.98); save(); for (const u of bars.querySelectorAll('u')) u.style.left = ms.threshold * 100 + '%'; }),
-          mapBox,
-          this.btn('OPEN MOTION LAB', () => window.open('train.html', '_blank'), { cls: 'small', icon: '🧪', sub: 'Record gestures & train the Edge Impulse model' })),
+          mapBox),
         el('div', { class: 'mo-live' }, status, ownBtn, dial, steerVal, el('div', { class: 'mo-sub' }, 'LIVE CLASSIFICATION'), bars)),
       this.footer([['ok', 'Change'], ['back', 'Back']]));
 

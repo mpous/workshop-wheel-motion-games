@@ -1,0 +1,9 @@
+name: Ardu Kart
+icon: 🏎️
+description: "Original 3D kart racer served by the UNO Q - race solo vs AI or with up to 20 friends over your LAN. Drive it with a Modulino wheel: tilt to steer, gestures recognised by Edge Impulse (Motion detection brick or a model on the MCU), shift lights on the Pixels. Train your own gestures in the Motion Lab (/train.html)."
+
+bricks:
+  - arduino:web_ui
+  # Gesture model: click the brick in App Lab to pick your Edge Impulse model
+  # (the default is the out-of-the-box updown / wave / snake / idle model).
+  - arduino:motion_detection

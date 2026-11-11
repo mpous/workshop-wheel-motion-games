@@ -1,4 +1,4 @@
-# Q-Kart race server for the Arduino UNO Q.
+# Ardu Kart race server for the Arduino UNO Q.
 #
 # Serves the browser game (assets/) through the WebUI brick, runs the
 # authoritative multiplayer lobby, relays kart states/events between racers,
@@ -25,8 +25,10 @@ import controller
 VERSION = "1.1.0"
 
 TICK_HZ = 20
-MAX_HUMANS = 8
-GRID_SIZE = 8
+MAX_HUMANS = 20          # players in one LAN race
+MAX_GRID = 20            # karts on the grid (humans + CPU rivals)
+BOT_FILL = 8             # CPU rivals fill the grid up to this many karts
+BIG_FIELD = 10           # above this many humans, snapshots go out at half rate
 COUNTDOWN_MS = 5000
 FINISH_GRACE_MS = 25000           # after the first human finishes
 MAX_RACE_MS = 20 * 60 * 1000      # safety net: a race never lasts longer than this
@@ -101,7 +103,7 @@ def as_number(value, default=0.0):
 # --------------------------------------------------------------------------
 
 def resolve_data_dir():
-    env = os.environ.get("QKART_DATA_DIR")
+    env = os.environ.get("ARDUKART_DATA_DIR")
     candidates = [env] if env else []
     candidates.append("/app/data")
     candidates.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
@@ -137,7 +139,7 @@ class RecordStore:
         except FileNotFoundError:
             pass
         except Exception as e:  # corrupted file: start fresh but keep a copy
-            print(f"[Q-Kart] could not read records ({e}), starting empty")
+            print(f"[Ardu Kart] could not read records ({e}), starting empty")
             try:
                 os.replace(self.path, self.path + ".bad")
             except OSError:
@@ -179,7 +181,7 @@ class RecordStore:
                 os.fsync(f.fileno())
             os.replace(tmp, self.path)
         except OSError as e:
-            print(f"[Q-Kart] failed to save records: {e}")
+            print(f"[Ardu Kart] failed to save records: {e}")
             self.dirty_since = time.time()
 
 
@@ -200,12 +202,12 @@ last_results_at = 0.0
 event_times = {}    # sid -> [window_start_ms, count]
 
 _ui_kwargs = {}
-if os.environ.get("QKART_ASSETS"):
-    _ui_kwargs["assets_dir_path"] = os.environ["QKART_ASSETS"]
-if os.environ.get("QKART_PORT"):
-    _ui_kwargs["port"] = int(os.environ["QKART_PORT"])
+if os.environ.get("ARDUKART_ASSETS"):
+    _ui_kwargs["assets_dir_path"] = os.environ["ARDUKART_ASSETS"]
+if os.environ.get("ARDUKART_PORT"):
+    _ui_kwargs["port"] = int(os.environ["ARDUKART_PORT"])
 ui = WebUI(**_ui_kwargs)
-motion = controller.MotionHub(ui, Bridge)
+motion = controller.MotionHub(ui, Bridge, resolve_data_dir())
 
 
 def host_id():
@@ -227,6 +229,7 @@ def lobby_payload():
         "settings": dict(settings),
         "hostId": hid,
         "racing": race is not None,
+        "max": MAX_HUMANS,
     }
 
 
@@ -255,7 +258,7 @@ def build_race():
         chars = [c for c in range(8) if c not in taken] + [c for c in range(8) if c in taken]
         names = list(BOT_NAMES)
         rng.shuffle(names)
-        for i in range(GRID_SIZE - len(grid)):
+        for i in range(BOT_FILL - len(grid)):
             grid.append({"id": f"bot{i}", "name": names[i % len(names)],
                          "character": chars[i % len(chars)], "isBot": True, "owner": hid})
     start_at = now_ms() + COUNTDOWN_MS
@@ -268,6 +271,8 @@ def build_race():
         "startAt": start_at,
         "grid": grid,
         "hostId": hid,
+        # 20 karts x 20 players at 20 Hz is ~1 MB/s of snapshots; halve it for big fields
+        "netHz": TICK_HZ if len(humans) <= BIG_FIELD else TICK_HZ // 2,
         "kart": {k["id"]: k for k in grid},
         "humans": {k["id"] for k in grid if not k["isBot"]},
         "left": set(),
@@ -279,7 +284,7 @@ def build_race():
 
 
 def race_public(r):
-    return {k: r[k] for k in ("raceId", "seed", "track", "cc", "laps", "startAt", "grid", "hostId")}
+    return {k: r[k] for k in ("raceId", "seed", "track", "cc", "laps", "startAt", "grid", "hostId", "netHz")}
 
 
 def finalize_race_locked():
@@ -506,7 +511,7 @@ def on_state(sid, data):
     with lock:
         if race is None:
             return None
-        for k in karts[:GRID_SIZE]:
+        for k in karts[:MAX_GRID]:
             if not isinstance(k, dict):
                 continue
             kid = k.get("id")
@@ -619,8 +624,8 @@ def get_led_state():
                 return f"count:{max(0, min(3, s['count']))}"
             if s["state"] == "race":
                 laps = max(1, s["laps"])
-                return f"race:{max(1, min(laps, s['lap']))}:{laps}:{max(1, min(9, s['pos']))}"
-            return f"finish:{max(1, min(9, s['pos']))}"
+                return f"race:{max(1, min(laps, s['lap']))}:{laps}:{max(1, min(MAX_GRID, s['pos']))}"
+            return f"finish:{max(1, min(MAX_GRID, s['pos']))}"
         if members:
             return f"lobby:{len(members)}"
     return "idle"
@@ -665,20 +670,21 @@ ui.on_message("finish", on_finish)
 ui.on_message("record", on_record)
 ui.on_message("get_records", on_get_records)
 ui.expose_api("GET", "/api/status", api_status)
-if os.environ.get("QKART_DEBUG") == "1":
+if os.environ.get("ARDUKART_DEBUG") == "1":
     ui.expose_api("GET", "/api/debug/led", api_debug_led)
     ui.expose_api("GET", "/api/debug/mcu", api_debug_mcu)
 
     def api_debug_sim(tilt: float = None, gesture: str = None, button: int = None, auto: bool = False):
         sim = getattr(Bridge, "sim", None)
         if sim is None:
-            return {"ok": False, "error": "start with QKART_SIM_BOARD=1"}
+            return {"ok": False, "error": "start with ARDUKART_SIM_BOARD=1"}
         return {"ok": True, **sim.command(tilt=tilt, gesture=gesture, button=button, auto=auto)}
     ui.expose_api("GET", "/api/debug/sim", api_debug_sim)
 motion.register()
 
 
 _next_tick = time.monotonic()
+_tick_n = 0
 _led_sent = (None, 0.0)
 
 
@@ -697,13 +703,14 @@ def push_led_state():
 
 def tick():
     """20 Hz server tick: snapshots, race timeouts, debounced record saving."""
-    global _next_tick
+    global _next_tick, _tick_n
+    _tick_n += 1
     snapshot = None
     end = False
     with lock:
         if race is not None:
             t = now_ms()
-            if race["states"]:
+            if race["states"] and _tick_n % (TICK_HZ // race["netHz"]) == 0:
                 snapshot = {"t": t, "karts": list(race["states"].values())}
             end = race_should_end_locked(t) if t > race["startAt"] else not (race["humans"] - race["left"])
         records.save_if_due()
