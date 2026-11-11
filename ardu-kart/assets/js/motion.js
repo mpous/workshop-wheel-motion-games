@@ -75,6 +75,7 @@ export class MotionController {
     this.installed = null;
     this.engine = null;      // {pref, active: 'brick' | 'mcu' | null, labels, name, brick}
     this.owner = undefined;
+    this.ownerKind = null;   // 'game' | 'lab'
     this.labels = [];
     this.probs = [];
     this.mlAt = 0;
@@ -109,11 +110,19 @@ export class MotionController {
     this._revAt = 0;
     this._ledMask = -1;
     this._buildHud();
+    // coming back from the Motion Lab tab: this tab drives the wheel again
+    window.addEventListener('focus', () => this._autoClaim());
+    document.addEventListener('visibilitychange', () => this._autoClaim());
 
     const n = app.net;
     n.on('connect', () => this._onConnect());
     n.on('hw', (st) => this._onStatus(st));
-    n.on('motion_owner', (m) => { this.owner = m ? m.id : null; this._autoClaim(); this._emit('owner'); });
+    n.on('motion_owner', (m) => {
+      this.owner = m ? m.id : null; this.ownerKind = m ? m.kind : null;
+      // the release of a held button goes to the new owner, so forget it here
+      if (!this.owned) this.buttons.fill(false);
+      this._autoClaim(); this._emit('owner');
+    });
     n.on('imu', (m) => this._onImu(m));
     n.on('ml', (m) => this._onMl(m));
     n.on('btn', (m) => this._onButton(m.i, m.p));
@@ -150,7 +159,7 @@ export class MotionController {
     if (!st) return;
     if (st.hw) { this.hw = st.hw; this.hwAt = st.online ? performance.now() : 0; }
     this.installed = st.installed;
-    if ('owner' in st) this.owner = st.owner;
+    if ('owner' in st) { this.owner = st.owner; this.ownerKind = st.ownerKind || null; }
     if (st.engine) {
       if (this.engine && this.engine.active !== st.engine.active) this.probs = [];
       this.engine = st.engine;
@@ -161,14 +170,17 @@ export class MotionController {
     this._emit('status');
   }
 
+  // Take the wheel when it is free, or from the Motion Lab when this tab has
+  // the focus. Game tabs never take it from each other (LAN players' screens).
   _autoClaim() {
-    if (this.settings.enabled === 'off' || !this.online || this.owner !== null || !this.app.net.connected) return;
-    this.claim(false);
+    if (this.settings.enabled === 'off' || !this.online || !this.app.net.connected || this.owned) return;
+    if (this.owner === null) this.claim(false);
+    else if (this.ownerKind === 'lab' && !document.hidden && document.hasFocus()) this.claim(false, true);
   }
 
-  claim(force = true) {
-    return this.app.net.request('motion_claim', { force }).then((r) => {
-      if (r) this.owner = r.owner;
+  claim(force = true, fromLab = false) {
+    return this.app.net.request('motion_claim', { force, fromLab }).then((r) => {
+      if (r) { this.owner = r.owner; this.ownerKind = r.kind || null; }
       this._ledMask = -1;
       this._emit('owner');
       return this.owned;
@@ -384,8 +396,7 @@ export class MotionController {
     this._emit('button');
     if (a.state === 'race') {
       if (i === 1) this.pulses.add('item');
-      if (i === 2) this.pulses.add('pause');
-      return;                         // A (held) = drift, read in poll()
+      return;                         // A or C (held) = accelerate, read in poll()
     }
     const scr = a.ui.screen && a.ui.screen.name;
     if (scr === 'title') { a.audio.play('menuSelect'); a.startPressed(); return; }
@@ -410,17 +421,15 @@ export class MotionController {
     const r = {
       steer: this.steer,
       throttle: 0, brake: 0,
-      drift: this.buttons[0] || held('drift'),
+      drift: held('drift'),
       lookBack: held('lookBack'),
       item: this.pulses.has('item'),
       camera: this.pulses.has('camera'),
       pause: this.pulses.has('pause'),
     };
-    // no model on the board: the wheel keeps the throttle down for you
-    const cruise = this.cruise || !this.hasModel;
     const k = this.app.race && this.app.race.player;
     if (held('brake')) r.brake = this._brakeToStop && k && k.speed <= 0.5 ? 0 : 1;
-    else if (cruise) r.throttle = 1;
+    else if (this.gasHeld || this.cruise || this.autoGas) r.throttle = 1;
     this.pulses.clear();
 
     // menus: tilt the wheel to move left / right
@@ -437,8 +446,13 @@ export class MotionController {
     return r;
   }
 
+  // buttons A and C are the gas pedal
+  get gasHeld() { return this.buttons[0] || this.buttons[2]; }
+  // no Buttons module and no model: nothing could accelerate, so the wheel keeps the throttle down
+  get autoGas() { return !this.hasModel && !(this.hw && this.hw.buttons); }
+
   // reset the latched throttle so a held gesture cannot flood the rocket start
-  resetRace() { this.cruise = false; this.until = {}; this.pulses.clear(); }
+  resetRace() { this.cruise = false; this.until = {}; this.pulses.clear(); this._autoClaim(); }
 
   // called every frame by the app: shift lights, button LEDs, HUD
   update() {
@@ -524,9 +538,11 @@ export class MotionController {
     if (!racing) return;
     this._hudWheel.style.transform = `rotate(${(-this.steer * 90).toFixed(1)}deg)`;
     const held = (k) => (this.until[k] || 0) > performance.now();
-    const st = !this.hasModel ? 'AUTO-ACCEL · NO MODEL' : held('brake') ? 'BRAKE' : this.cruise ? 'CRUISE' : 'COAST · ACCELERATE!';
+    const on = this.gasHeld || this.cruise || this.autoGas;
+    const st = held('brake') ? 'BRAKE' : this.gasHeld ? 'GAS' : this.cruise ? 'CRUISE'
+      : this.autoGas ? 'AUTO-ACCEL · NO MODEL' : this.hw && this.hw.buttons ? 'HOLD A OR C TO ACCELERATE' : 'COAST · ACCELERATE!';
     if (this._hudState.textContent !== st) this._hudState.textContent = st;
-    this._hudState.className = 'mh-state' + (held('brake') ? ' brake' : this.cruise || !this.hasModel ? ' on' : '');
+    this._hudState.className = 'mh-state' + (held('brake') ? ' brake' : on ? ' on' : '');
     this._updateClasses();
   }
 }

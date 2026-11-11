@@ -158,6 +158,7 @@ class MotionHub:
         self.job = None               # {"sid", "kind", "id", "stage"}
         self.changed_model = False    # installed/removed since the app started
         self.owner = None             # sid of the game tab driving with the wheel
+        self.owner_kind = None        # "game" or "lab": a game tab takes the wheel back from the Motion Lab
 
     # ------------------------------------------------------------- MCU -> Python
 
@@ -338,7 +339,7 @@ class MotionHub:
         # the board runs another model than the one on disk: a restart is pending or the compile failed
         mismatch = online and not hw.get("sim") and bool(installed) != running
         return {"online": online, "hw": hw, "installed": installed, "restartNeeded": changed or mismatch,
-                "job": job, "owner": self.owner, "engine": self.engine_status()}
+                "job": job, "owner": self.owner, "ownerKind": self.owner_kind, "engine": self.engine_status()}
 
     def on_status(self, sid, data):
         st = self.status_payload()
@@ -351,14 +352,16 @@ class MotionHub:
     def on_claim(self, sid, data):
         data = data if isinstance(data, dict) else {}
         with self.lock:
+            kind = "lab" if data.get("kind") == "lab" else "game"
             if data.get("release"):
                 if self.owner == sid:
-                    self.owner = None
-            elif data.get("force") or self.owner is None:
-                self.owner = sid
-            owner = self.owner
-        self.ui.send_message("motion_owner", {"id": owner}, room="motion")
-        return {"owner": owner}
+                    self.owner = self.owner_kind = None
+            elif (data.get("force") or self.owner is None
+                  or (data.get("fromLab") and self.owner_kind == "lab")):
+                self.owner, self.owner_kind = sid, kind
+            owner, owner_kind = self.owner, self.owner_kind
+        self.ui.send_message("motion_owner", {"id": owner, "kind": owner_kind}, room="motion")
+        return {"owner": owner, "kind": owner_kind}
 
     def _may_drive(self, sid):
         return self.owner is None or self.owner == sid
@@ -445,9 +448,9 @@ class MotionHub:
             self.recordings.pop(sid, None)
             released = self.owner == sid
             if released:
-                self.owner = None
+                self.owner = self.owner_kind = None
         if released:
-            self.ui.send_message("motion_owner", {"id": None}, room="motion")
+            self.ui.send_message("motion_owner", {"id": None, "kind": None}, room="motion")
 
     # ------------------------------------------------------------- Edge Impulse
 

@@ -674,11 +674,11 @@ if os.environ.get("ARDUKART_DEBUG") == "1":
     ui.expose_api("GET", "/api/debug/led", api_debug_led)
     ui.expose_api("GET", "/api/debug/mcu", api_debug_mcu)
 
-    def api_debug_sim(tilt: float = None, gesture: str = None, button: int = None, auto: bool = False):
+    def api_debug_sim(tilt: float = None, gesture: str = None, button: int = None, auto: bool = False, hold: float = None):
         sim = getattr(Bridge, "sim", None)
         if sim is None:
             return {"ok": False, "error": "start with ARDUKART_SIM_BOARD=1"}
-        return {"ok": True, **sim.command(tilt=tilt, gesture=gesture, button=button, auto=auto)}
+        return {"ok": True, **sim.command(tilt=tilt, gesture=gesture, button=button, auto=auto, hold=hold)}
     ui.expose_api("GET", "/api/debug/sim", api_debug_sim)
 motion.register()
 

@@ -591,8 +591,8 @@ export class UI {
           row('A / RT', 'Accelerate'), row('B / LT', 'Brake'), row('Stick', 'Steer'), row('LB / RB', 'Hop & drift'),
           row('X', 'Use item'), row('Y', 'Look back'), row('START', 'Pause')),
         el('div', { class: 'help-col' }, el('h3', {}, 'MODULINO WHEEL'),
-          row('Turn', 'Steer'), row('Gestures', 'Accelerate, brake, item, camera'), row('A', 'Hop & drift (hold)'),
-          row('B', 'Use item'), row('C', 'Pause'), row('Menus', 'A Start · B Grand Prix · C LAN'),
+          row('Turn', 'Steer'), row('A / C', 'Accelerate (hold)'), row('B', 'Use item'),
+          row('Gestures', 'Accelerate, brake, item, camera'), row('Menus', 'A Start · B Grand Prix · C LAN'),
           el('p', { class: 'help-note' }, 'Map the Edge Impulse classes to actions in Train your motion controller (main menu).')),
         el('div', { class: 'help-col' }, el('h3', {}, 'PRO TIPS'),
           el('p', {}, 'Hold drift through corners: sparks go blue → orange → purple. Release for a mini-turbo.'),
@@ -634,7 +634,7 @@ export class UI {
         el('div', { class: 'mo-hint' },
           m.owned ? 'This screen drives the wheel.' : m.owner ? 'Another screen is driving the wheel.' : 'The wheel is free.',
           m.hasModel ? '' : eng.pref && eng.pref !== 'auto' ? ` The ${eng.pref === 'brick' ? 'Motion detection brick' : 'MCU model'} is not available — pick AUTO or another engine.`
-            : ' Train one in the Motion Lab — until then the wheel keeps the throttle down for you.',
+            : ' Train one in the Motion Lab. Until then, hold A or C to accelerate.',
           brick.state === 'error' ? ` Brick: ${brick.error}` : '',
           hw.sim ? ' (simulated board)' : ''));
       ownBtn.classList.toggle('hidden', m.owned || ms.enabled === 'off');
