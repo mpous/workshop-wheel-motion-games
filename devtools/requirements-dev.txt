@@ -1,0 +1,5 @@
+# Desktop-only dependencies for running the vendored WebUI brick outside the UNO Q.
+fastapi>=0.110
+fastapi-socketio>=0.0.10
+python-socketio>=5.11
+uvicorn>=0.29

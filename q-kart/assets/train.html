@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d1f">
+  <title>Q-Kart Motion Lab · Edge Impulse</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300a9ae'/%3E%3Ctext x='32' y='44' font-size='36' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='white'%3EQ%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="train.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo-q">Q</span><span class="logo-kart">KART</span><span class="brand-sub">MOTION LAB</span></div>
+    <div id="board-chips" class="chips"></div>
+    <a class="play" href="./" target="_self">▶ PLAY Q-KART</a>
+  </header>
+
+  <main>
+    <!-- live sensor data -->
+    <section class="card wide" id="live">
+      <div class="card-head">
+        <h2>Modulino Movement · live</h2>
+        <div class="head-right"><span id="rate" class="muted">–</span><button id="freeze" class="ghost">Pause chart</button></div>
+      </div>
+      <div class="charts">
+        <div class="chart-wrap"><div class="chart-title">Accelerometer <span class="muted">(g)</span><span class="legend" id="leg-acc"></span></div><canvas id="chart-acc"></canvas></div>
+        <div class="chart-wrap"><div class="chart-title">Gyroscope <span class="muted">(°/s)</span><span class="legend" id="leg-gyr"></span></div><canvas id="chart-gyr"></canvas></div>
+      </div>
+      <div id="no-board" class="banner hidden"></div>
+    </section>
+
+    <!-- 1 connect -->
+    <section class="card" id="ei">
+      <div class="card-head"><h2><span class="step">1</span> Edge Impulse project</h2><a id="studio-link" class="hidden" target="_blank" rel="noopener">Open Studio ↗</a></div>
+      <p class="muted small">Create a project at <a href="https://studio.edgeimpulse.com" target="_blank" rel="noopener">studio.edgeimpulse.com</a>, then copy its API key from <b>Dashboard → Keys</b>. The key is only sent to this board, which talks to Edge Impulse for you.</p>
+      <form id="key-form" class="row" autocomplete="off">
+        <input id="api-key" type="password" placeholder="ei_…" spellcheck="false" autocomplete="off">
+        <button id="connect" class="primary" type="submit">Connect</button>
+      </form>
+      <label class="check"><input id="remember" type="checkbox" checked> Remember the key in this browser</label>
+      <div id="project" class="project hidden"></div>
+    </section>
+
+    <!-- 2 record -->
+    <section class="card" id="rec">
+      <div class="card-head"><h2><span class="step">2</span> Record gestures</h2><span id="rec-count" class="muted"></span></div>
+      <div class="field"><label>Label</label>
+        <input id="label" type="text" maxlength="64" value="idle" spellcheck="false">
+        <div id="label-chips" class="chips small"></div>
+      </div>
+      <div class="row3">
+        <div class="field"><label>Length</label>
+          <select id="length"><option value="2000">2 s</option><option value="5000">5 s</option><option value="10000" selected>10 s</option><option value="20000">20 s</option></select></div>
+        <div class="field"><label>Dataset</label>
+          <select id="category"><option value="training">Training</option><option value="testing">Testing</option><option value="split">Auto 80/20</option></select></div>
+        <div class="field"><label>After recording</label>
+          <select id="after"><option value="upload">Upload</option><option value="review">Review first</option></select></div>
+      </div>
+      <button id="record" class="record">● RECORD <small>or press Modulino button A</small></button>
+      <div id="rec-status" class="rec-status hidden"><div class="rec-big"></div><div class="rec-bar"><i></i></div></div>
+      <div id="review" class="review hidden">
+        <canvas id="chart-sample"></canvas>
+        <div class="row"><span id="review-info" class="muted"></span><span class="grow"></span>
+          <button id="r-discard" class="ghost">Discard</button><button id="r-download" class="ghost">Download JSON</button><button id="r-upload" class="primary">Upload</button></div>
+      </div>
+      <ul id="samples" class="samples"></ul>
+      <p class="tip">Continuous motion recognition: repeat the gesture over and over for the whole recording (10 s ≈ 8–10 gestures). Record <b>idle</b> too: holding the wheel and steering normally, so steering never triggers a gesture.</p>
+    </section>
+
+    <!-- 3 train -->
+    <section class="card" id="train">
+      <div class="card-head"><h2><span class="step">3</span> Train &amp; deploy</h2></div>
+      <div id="impulse" class="impulse muted small"></div>
+      <div class="row wrap">
+        <button id="j-train" class="ghost" data-kind="retrain">Train</button>
+        <button id="j-build" class="ghost" data-kind="build">Build &amp; install</button>
+        <button id="j-all" class="primary" data-kind="train_build">Train + build + install</button>
+      </div>
+      <ol id="stages" class="stages"><li data-s="training">Train</li><li data-s="building">Build library</li><li data-s="downloading">Download</li><li data-s="installing">Install</li><li data-s="done">Ready</li></ol>
+      <pre id="log" class="log"></pre>
+      <div id="model-state" class="model-state"></div>
+      <details class="manual"><summary>Install a library .zip manually</summary>
+        <p class="muted small">In Studio: <b>Deployment → Arduino library → Build</b>, then pick the downloaded zip here.</p>
+        <div class="row"><input id="zip" type="file" accept=".zip,application/zip"><button id="remove-model" class="ghost danger">Remove model</button></div>
+      </details>
+    </section>
+
+    <!-- 4 test -->
+    <section class="card" id="test">
+      <div class="card-head"><h2><span class="step">4</span> Test the model</h2><span id="timing" class="muted"></span></div>
+      <div id="top-label" class="top-label">–</div>
+      <div id="test-bars" class="bars"></div>
+      <div class="field"><label>Confidence threshold <span id="th-val"></span></label><input id="threshold" type="range" min="0.3" max="0.98" step="0.01"></div>
+      <div id="history" class="history"></div>
+      <p class="tip">These are the class probabilities computed by the Edge Impulse model running on the STM32 MCU, four times per second. Map classes to kart actions in the game under <b>Settings → Motion controller</b>.</p>
+    </section>
+  </main>
+
+  <div id="countdown" class="countdown hidden"></div>
+  <div id="toast"></div>
+
+  <script src="libs/socket.io.min.js"></script>
+  <script type="module" src="js/train.js"></script>
+</body>
+</html>
