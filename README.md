@@ -56,6 +56,7 @@ If port 7000 is busy, run `ARDUKART_PORT=8080 ./run_local.sh` instead. When runn
 curl "localhost:7000/api/debug/sim?tilt=0.4"           # radians, + = left, - = right
 curl "localhost:7000/api/debug/sim?gesture=accelerate"  # or brake, use_item, change_camera
 curl "localhost:7000/api/debug/sim?button=0"            # 0 = A, 1 = B, 2 = C
+curl "localhost:7000/api/debug/sim?button=0&hold=3"     # hold A for 3 s (gas in a race)
 curl "localhost:7000/api/debug/sim?auto=1"              # back to the slow sway
 ```
 Add `ARDUKART_SIM_BRICK=1` to simulate the Motion detection brick as well, and `ARDUKART_SIM_MODEL=0` to simulate a sketch without an MCU model, so the game uses the brick.
@@ -148,7 +149,7 @@ Then hard-refresh the browser (Ctrl/Cmd + Shift + R).
 |---|---|
 | Arduino UNO Q | Game server (Linux side) and gesture classifier (MCU side) |
 | **Modulino Movement** (LSM6DSOX) | Accelerometer and gyroscope. Its data steers the kart and feeds the Edge Impulse model |
-| **Modulino Buttons** | A / B / C buttons with LEDs: Start, Grand Prix and LAN in the main menu. In a race, A (held) drifts, B uses the item and C pauses |
+| **Modulino Buttons** | A / B / C buttons with LEDs: Start, Grand Prix and LAN in the main menu. In a race, hold A or C to accelerate, and press B to use the item |
 | **Modulino Pixels** | 8 RGB LEDs used as rev and shift lights. They show the kart speed, plus colours for boosts, drift sparks and the finish |
 
 Chain the three Modulinos with Qwiic cables into the UNO Q's Qwiic connector, then mount everything on a wheel (a 3D-printed or cardboard disc works) and power the board over USB-C. Mount the board in any orientation: the calibration finds the steering axis. Every Modulino is optional and hot-pluggable.
@@ -227,15 +228,15 @@ Open the game and press **Train your motion controller** on the main menu:
 | | Modulino wheel |
 |---|---|
 | Steer | tilt / turn the wheel |
-| Accelerate | `accelerate` gesture: the throttle stays on (cruise) until you brake. Do it on the **1** of the countdown for a rocket start |
+| Accelerate | hold button **A** or **C**, or make the `accelerate` gesture: the throttle stays on (cruise) until you brake. Press the gas on the **1** of the countdown for a rocket start. Without a Buttons module and a model, the throttle stays on for you |
 | Brake | `brake` gesture: slows the kart to a stop. Do it again at a standstill to reverse |
 | Use item | `use_item` gesture or button **B** (it throws backwards if you brake or look back at the same time) |
 | Change camera | `change_camera` gesture |
-| Drift / hop | hold button **A** |
-| Pause | button **C** |
+| Drift / hop | a gesture mapped to *Drift* |
+| Pause | a gesture mapped to *Pause*, or Esc |
 | Menus | A = OK, B = back, C = down; tilt left/right to change options. On the main menu: A Start, B Grand Prix, C LAN |
 
-The HUD in the bottom-left corner shows the wheel angle, the throttle state (CRUISE / COAST / BRAKE), the gesture engine and every class of your model with its confidence in % (the top class is highlighted, the yellow mark is the confidence threshold). Keyboard, gamepad and touch keep working alongside the wheel. With several browsers on the LAN, only one screen drives the wheel. The game takes it automatically when it is free, and the Motion Lab takes it while it is open.
+The HUD in the bottom-left corner shows the wheel angle, the throttle state (GAS / CRUISE / BRAKE), the gesture engine and every class of your model with its confidence in % (the top class is highlighted, the yellow mark is the confidence threshold). Keyboard, gamepad and touch keep working alongside the wheel. With several browsers on the LAN, only one screen drives the wheel. The game takes it automatically when it is free. The Motion Lab takes it while you use it, and the game takes it back as soon as you switch to the game tab or start a race there.
 
 ---
 

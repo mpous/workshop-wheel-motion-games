@@ -579,6 +579,13 @@ function init() {
     if (e.code === 'Escape' && state.recording) { state.recording = null; failRecording('Recording cancelled'); $('#countdown').classList.add('hidden'); }
   });
 
+  const claimWheel = async () => {
+    const c = await net.request('motion_claim', { force: true, kind: 'lab' });
+    if (c) state.owner = c.owner;
+  };
+  // the game tab takes the wheel back when you switch to it; take it again here
+  window.addEventListener('focus', () => { if (net.connected && state.owner !== net.id) claimWheel(); });
+
   net.on('connect', async () => {
     net.joinRoom('motion');
     renderBoard();
@@ -586,8 +593,7 @@ function init() {
     onStatus(st);
     if (st && st.ml) onMl(st.ml);
     // take the wheel while the lab is open so button A records here, not in a game tab
-    const c = await net.request('motion_claim', { force: true });
-    if (c) state.owner = c.owner;
+    claimWheel();
     net.send('ctl_leds', { mask: 1 });
     if ($('#api-key').value && !state.project) connectEI();
   });

@@ -40,7 +40,7 @@ class SimBoard:
 
     # ---------------------------------------------------------------- control
 
-    def command(self, tilt=None, gesture=None, button=None, auto=False):
+    def command(self, tilt=None, gesture=None, button=None, auto=False, hold=None):
         with self.lock:
             if auto:
                 self.tilt = None
@@ -49,7 +49,7 @@ class SimBoard:
             if gesture:
                 self.gesture = (gesture, time.time())
             if button is not None and 0 <= int(button) <= 2:
-                self.presses.append((int(button), time.time() + 0.12))
+                self.presses.append((int(button), time.time() + (float(hold) if hold else 0.12)))
                 self._emit("btn", int(button), True)
         return self.state()
 
