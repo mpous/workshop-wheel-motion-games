@@ -1,6 +1,0 @@
-name: Q-Kart
-icon: 🏎️
-description: "Original 3D kart racer served by the UNO Q - race solo vs AI or with friends over your LAN. Drive it with a Modulino wheel: tilt to steer, gestures recognised by an Edge Impulse model on the MCU, shift lights on the Pixels. Motion Lab at /train.html"
-
-bricks:
-  - arduino:web_ui

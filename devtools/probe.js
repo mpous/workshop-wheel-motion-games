@@ -5,7 +5,7 @@ const puppeteer = require('puppeteer-core');
   p.on('pageerror', (e) => console.log('[pageerror]', e.message));
   p.on('console', (m) => { if (m.type()==='error') console.log('[err]', m.text()); });
   await p.goto('http://localhost:' + (process.argv[3]||7111) + '/');
-  await p.waitForFunction('window.qkart && window.qkart.state === "menu"', { timeout: 60000 });
+  await p.waitForFunction('window.ardukart && window.ardukart.state === "menu"', { timeout: 60000 });
   const code = process.argv[2];
   for (let i = 0; i < +(process.env.N || 1); i++) {
     await new Promise(r => setTimeout(r, +(process.env.DT || 1000)));

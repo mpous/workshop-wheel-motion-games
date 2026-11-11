@@ -27,7 +27,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const shot = async (name) => { const f = path.join(outDir, `${scenario}_${name}.png`); await page.screenshot({ path: f }); console.log('saved', f); };
   const evalq = (fn, ...a) => page.evaluate(fn, ...a);
   await page.goto(`http://localhost:${port}/`, { waitUntil: 'load' });
-  await page.waitForFunction('window.qkart && window.qkart.state === "menu"', { timeout: 60000 });
+  await page.waitForFunction('window.ardukart && window.ardukart.state === "menu"', { timeout: 60000 });
   await sleep(1500);
   const steps = {
     async basic() {
@@ -35,16 +35,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await page.keyboard.press('Enter');
       await sleep(800);
       await shot('main');
-      await evalq(() => window.qkart.ui.show('chars', { next: 'race' }));
+      await evalq(() => window.ardukart.ui.show('chars', { next: 'race' }));
       await sleep(1200);
       await shot('chars');
-      await evalq(() => window.qkart.ui.show('tracks', { next: 'race' }));
+      await evalq(() => window.ardukart.ui.show('tracks', { next: 'race' }));
       await sleep(600);
       await shot('tracks');
     },
     async race() {
       const track = process.env.TRACK || 'sunset';
-      await evalq((t) => window.qkart.startSolo({ mode: 'race', track: t, cc: 150, laps: 3 }), track);
+      await evalq((t) => window.ardukart.startSolo({ mode: 'race', track: t, cc: 150, laps: 3 }), track);
       await sleep(1500);
       await shot('intro');
       await sleep(2000);
@@ -52,21 +52,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await sleep(1500);
       await shot('go');
       // let the AI drive the player to see mid-race views
-      await evalq(() => { const r = window.qkart.race; r.ai.set(r.player.id, r.autoDriver); });
+      await evalq(() => { const r = window.ardukart.race; r.ai.set(r.player.id, r.autoDriver); });
       for (let i = 0; i < 4; i++) {
         await sleep(3500);
         await shot('drive' + i);
-        console.log('QK', await evalq(() => { const r = window.qkart.race, p = r.player; return JSON.stringify({ t: r.raceTime.toFixed(1), place: p.place, lap: p.lap, spd: p.speed.toFixed(1), fps: window.qkart.fps.toFixed(0), item: p.item }); }));
+        console.log('QK', await evalq(() => { const r = window.ardukart.race, p = r.player; return JSON.stringify({ t: r.raceTime.toFixed(1), place: p.place, lap: p.lap, spd: p.speed.toFixed(1), fps: window.ardukart.fps.toFixed(0), item: p.item }); }));
       }
       await page.keyboard.up('ArrowUp');
     },
     async go() {
-      await evalq(() => window.qkart.startSolo({ mode: 'race', track: 'sunset', cc: 150, laps: 3 }));
-      await evalq(() => { const r = window.qkart.race; r.ai.set(r.player.id, r.autoDriver); r.player.rocket.pressedAt = -0.8; });
-      await page.waitForFunction('window.qkart.race.raceTime > -0.3', { timeout: 20000 });
+      await evalq(() => window.ardukart.startSolo({ mode: 'race', track: 'sunset', cc: 150, laps: 3 }));
+      await evalq(() => { const r = window.ardukart.race; r.ai.set(r.player.id, r.autoDriver); r.player.rocket.pressedAt = -0.8; });
+      await page.waitForFunction('window.ardukart.race.raceTime > -0.3', { timeout: 20000 });
       const toggles = (process.env.TOGGLES || '').split(',');
       for (let i = 0; i < 8; i++) {
-        if (toggles[i]) { console.log('toggle', toggles[i]); await evalq((t) => { const a = window.qkart, r = a.race; ({
+        if (toggles[i]) { console.log('toggle', toggles[i]); await evalq((t) => { const a = window.ardukart, r = a.race; ({
           hud: () => { document.getElementById('hud').style.display = 'none'; },
           bloom: () => { a.bloom.enabled = false; },
           flames: () => { for (const k of r.karts) for (const f of k.model.userData.boostFlames) f.material.visible = false; },
@@ -77,18 +77,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
           vignette: () => { document.querySelector('.hud-vignette').style.display = 'none'; },
         })[t](); }, toggles[i]); await sleep(100); }
         await shot('go' + i);
-        console.log('QK', await evalq(() => { const r = window.qkart.race, c = r.camera.cam; const a = window.qkart, cv = a.renderer.domElement, e = c.matrixWorldInverse.elements.concat(c.projectionMatrix.elements); return JSON.stringify({ t: r.raceTime.toFixed(2), fov: c.fov.toFixed(1), cv: [cv.width, cv.height, getComputedStyle(cv).opacity, getComputedStyle(cv).display], camNaN: e.some((v) => !Number.isFinite(v)), tris: a.renderer.info.render.triangles, calls: a.renderer.info.render.calls, nanKarts: r.karts.filter((k) => !Number.isFinite(k.model.matrixWorld.elements[12] + k.model.matrixWorld.elements[0])).map((k) => k.name) }); }));
+        console.log('QK', await evalq(() => { const r = window.ardukart.race, c = r.camera.cam; const a = window.ardukart, cv = a.renderer.domElement, e = c.matrixWorldInverse.elements.concat(c.projectionMatrix.elements); return JSON.stringify({ t: r.raceTime.toFixed(2), fov: c.fov.toFixed(1), cv: [cv.width, cv.height, getComputedStyle(cv).opacity, getComputedStyle(cv).display], camNaN: e.some((v) => !Number.isFinite(v)), tris: a.renderer.info.render.triangles, calls: a.renderer.info.render.calls, nanKarts: r.karts.filter((k) => !Number.isFinite(k.model.matrixWorld.elements[12] + k.model.matrixWorld.elements[0])).map((k) => k.name) }); }));
         await sleep(250);
       }
     },
     async full() {
       // fast-forward a full race with the AI driving the player
       const track = process.env.TRACK || 'sunset';
-      await evalq((t) => window.qkart.startSolo({ mode: 'race', track: t, cc: 150, laps: 1 }), track);
-      await evalq(() => { const r = window.qkart.race; r.ai.set(r.player.id, r.autoDriver); });
+      await evalq((t) => window.ardukart.startSolo({ mode: 'race', track: t, cc: 150, laps: 1 }), track);
+      await evalq(() => { const r = window.ardukart.race; r.ai.set(r.player.id, r.autoDriver); });
       for (let i = 0; i < 40; i++) {
         await sleep(2000);
-        const s = await evalq(() => { const a = window.qkart; const r = a.race; return JSON.stringify({ st: a.state, t: r && r.raceTime && r.raceTime.toFixed(1), place: r && r.player.place, lap: r && r.player.lap, scr: a.ui.screen && a.ui.screen.name }); });
+        const s = await evalq(() => { const a = window.ardukart; const r = a.race; return JSON.stringify({ st: a.state, t: r && r.raceTime && r.raceTime.toFixed(1), place: r && r.player.place, lap: r && r.player.lap, scr: a.ui.screen && a.ui.screen.name }); });
         console.log('QK', s);
         if (s.includes('"scr":"results"')) break;
       }

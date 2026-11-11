@@ -6,6 +6,7 @@ devtools/kart_preview/
 __pycache__/
 .DS_Store
 devtools/sketch_test/render_test
-q-kart/sketch/libraries/
-q-kart/sketch/build/
-q-kart.zip
+ardu-kart/sketch/libraries/
+ardu-kart/sketch/build/
+ardu-kart.zip
+tracks.svg

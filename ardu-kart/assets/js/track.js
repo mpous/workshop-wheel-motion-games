@@ -540,7 +540,7 @@ export class Track {
       post.castShadow = true;
       g.add(post);
     }
-    const bannerTex = TEX.billboardTexture(['Q-KART', 'POWERED BY ARDUINO UNO Q'], { bg: '#0b1a3a', accent: '#00a8a8' });
+    const bannerTex = TEX.billboardTexture(['ARDU KART', 'POWERED BY ARDUINO UNO Q'], { bg: '#0b1a3a', accent: '#00a8a8' });
     const banner = new THREE.Mesh(
       new THREE.BoxGeometry(hw * 2 + 1.2, 2.4, 0.6),
       [postMat, postMat, postMat, postMat, new THREE.MeshStandardMaterial({ map: bannerTex, emissiveMap: bannerTex, emissive: 0xffffff, emissiveIntensity: 0.35 }), new THREE.MeshStandardMaterial({ map: bannerTex, emissiveMap: bannerTex, emissive: 0xffffff, emissiveIntensity: 0.35 })],

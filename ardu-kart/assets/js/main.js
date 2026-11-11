@@ -1,4 +1,4 @@
-// Q-Kart entry point: renderer + post-processing, the main loop, game flow
+// Ardu Kart entry point: renderer + post-processing, the main loop, game flow
 // (attract mode, solo races, Grand Prix, time trial, LAN multiplayer) and glue
 // between the UI, the race session, the Modulino wheel and the UNO Q server.
 import * as THREE from '../libs/three.bundle.js';
@@ -14,8 +14,15 @@ import { CHARACTERS } from './kartModel.js';
 import { MotionController, defaultMotionSettings } from './motion.js';
 
 const VERSION = '1.1.0';
-const SETTINGS_KEY = 'qkart.settings';
-const LOCAL_REC_KEY = 'qkart.records';
+const SETTINGS_KEY = 'ardukart.settings';
+const LOCAL_REC_KEY = 'ardukart.records';
+
+// the game was called Q-Kart: carry saved data over to the new keys once
+try {
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith('qkart.') && localStorage.getItem('ardu' + k) === null) localStorage.setItem('ardu' + k, localStorage.getItem(k));
+  }
+} catch (e) { /* storage disabled */ }
 
 const QUALITY = {
   low: { pr: 0.75, maxPr: 1, shadows: false, post: false, bloom: false },
@@ -124,7 +131,7 @@ class App {
   clearLocalData() {
     try {
       localStorage.removeItem(LOCAL_REC_KEY);
-      for (const t of TRACKS) localStorage.removeItem('qkart.ghost.' + t.id);
+      for (const t of TRACKS) localStorage.removeItem('ardukart.ghost.' + t.id);
     } catch { /* ignore */ }
   }
 
@@ -238,7 +245,7 @@ class App {
     if (!mine) return;
     this.mpRaceId = msg.raceId;
     this.net.joinRoom('race');
-    this._startRace({ mode: 'mp', track: msg.track, cc: msg.cc, laps: msg.laps, seed: msg.seed, grid: msg.grid, startAt: msg.startAt, hostId: msg.hostId, character: this.settings.character, playerName: this.settings.name });
+    this._startRace({ mode: 'mp', track: msg.track, cc: msg.cc, laps: msg.laps, seed: msg.seed, grid: msg.grid, startAt: msg.startAt, hostId: msg.hostId, netHz: msg.netHz, character: this.settings.character, playerName: this.settings.name });
   }
 
   _onRaceResults(msg) {
@@ -570,7 +577,7 @@ class App {
 }
 
 const app = new App();
-window.qkart = app; // handy for debugging from the console
+window.ardukart = app; // handy for debugging from the console
 app.boot().catch((e) => {
   console.error(e);
   const l = $('#loader-label');

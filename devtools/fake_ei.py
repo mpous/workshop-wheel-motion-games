@@ -1,9 +1,9 @@
 """Minimal stand-in for the Edge Impulse Studio + ingestion APIs used by
-q-kart/python/controller.py, so the Motion Lab can be tested offline.
+ardu-kart/python/controller.py, so the Motion Lab can be tested offline.
 
     srv = FakeEI(api_key="ei_" + "a" * 32).start()
-    env["QKART_EI_STUDIO_URL"] = srv.url + "/v1/api"
-    env["QKART_EI_INGEST_URL"] = srv.url
+    env["ARDUKART_EI_STUDIO_URL"] = srv.url + "/v1/api"
+    env["ARDUKART_EI_INGEST_URL"] = srv.url
 
 `srv.uploads` keeps every ingested sample, `srv.requests` every request line.
 Run it alone (python3 devtools/fake_ei.py) to point a local server at it.
@@ -16,13 +16,13 @@ import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PID = 4242
-LIB = "qkart-wheel_inferencing"
+LIB = "ardukart-wheel_inferencing"
 
 
 def library_zip():
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        z.writestr(f"{LIB}/library.properties", "name=Q-Kart wheel\nversion=1.0.3\n")
+        z.writestr(f"{LIB}/library.properties", "name=Ardu Kart wheel\nversion=1.0.3\n")
         z.writestr(f"{LIB}/src/{LIB}.h", "// fake Edge Impulse library\n#pragma once\n")
         z.writestr(f"{LIB}/src/model-parameters/model_metadata.h", "#define EI_CLASSIFIER_LABEL_COUNT 5\n")
     return buf.getvalue()
@@ -94,9 +94,9 @@ class FakeEI:
                                      "file": headers.get("x-file-name"), "doc": doc})
             return 200, f"{headers.get('x-label')}.{len(self.uploads)}.json".encode(), "text/plain"
         if p == "/v1/api/projects":
-            return ok({"projects": [{"id": PID, "name": "Q-Kart wheel", "owner": "Workshop"}]})
+            return ok({"projects": [{"id": PID, "name": "Ardu Kart wheel", "owner": "Workshop"}]})
         if p == f"/v1/api/{PID}":
-            return ok({"project": {"id": PID, "name": "Q-Kart wheel", "owner": "Workshop"},
+            return ok({"project": {"id": PID, "name": "Ardu Kart wheel", "owner": "Workshop"},
                        "dataSummaryPerCategory": {"training": self._summary("training"),
                                                   "testing": self._summary("testing")}})
         if p == f"/v1/api/{PID}/impulse":
@@ -133,5 +133,5 @@ if __name__ == "__main__":
     key = sys.argv[1] if len(sys.argv) > 1 else "ei_" + "0" * 32
     srv = FakeEI(key)
     print(f"fake Edge Impulse on {srv.url} (API key {key})")
-    print(f"  QKART_EI_STUDIO_URL={srv.url}/v1/api QKART_EI_INGEST_URL={srv.url}")
+    print(f"  ARDUKART_EI_STUDIO_URL={srv.url}/v1/api ARDUKART_EI_INGEST_URL={srv.url}")
     srv.httpd.serve_forever()

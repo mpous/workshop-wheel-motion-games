@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0b0d1f">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Q-Kart · Arduino UNO Q</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300a9ae'/%3E%3Ctext x='32' y='44' font-size='36' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='white'%3EQ%3C/text%3E%3C/svg%3E">
+  <title>Ardu Kart · Arduino UNO Q</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300a9ae'/%3E%3Ctext x='32' y='44' font-size='26' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='white'%3EAK%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-screen="boot">
@@ -25,16 +25,18 @@
       <div class="t-brake">BRAKE</div>
       <div class="t-back">⟲</div>
     </div>
-    <div class="t-pause" onclick="window.qkart && window.qkart.pause()">❚❚</div>
+    <div class="t-pause" onclick="window.ardukart && window.ardukart.pause()">❚❚</div>
   </div>
 
+  <a id="ei-logo" href="https://edgeimpulse.com" target="_blank" rel="noopener"><img src="img/edge-impulse-logo.png" alt="Edge Impulse, a Qualcomm company"></a>
+
   <div id="loader">
-    <div class="loader-logo"><span class="logo-q">Q</span><span class="logo-kart">KART</span></div>
+    <div class="loader-logo"><span class="logo-ardu">ARDU</span><span class="logo-kart">KART</span></div>
     <div class="loader-track"><div id="loader-bar"></div></div>
     <div id="loader-label">Starting engines…</div>
   </div>
 
-  <noscript>Q-Kart needs JavaScript and WebGL.</noscript>
+  <noscript>Ardu Kart needs JavaScript and WebGL.</noscript>
   <script src="libs/socket.io.min.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>

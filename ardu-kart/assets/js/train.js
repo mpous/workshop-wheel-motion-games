@@ -1,13 +1,21 @@
-// Q-Kart Motion Lab: record Modulino Movement gestures, send them to Edge
-// Impulse, train + build the model and install it on the UNO Q, then test the
-// classifier that runs on the MCU. All Edge Impulse calls go through the board
+// Ardu Kart Motion Lab: record Modulino Movement gestures, send them to Edge
+// Impulse, train the model, deploy it (App Lab Motion detection brick, or an
+// Arduino library built into the sketch), then test the live classifier. All
+// Edge Impulse calls go through the board
 // (python/controller.py), so the browser never needs CORS access to Studio.
 import { Net } from './net.js';
 import { el, $, clamp } from './util.js';
 import { DEFAULT_LABELS, defaultAction, ACTION_LABEL } from './motion.js';
 
-const KEY_STORE = 'qkart.ei.key';
-const SETTINGS_KEY = 'qkart.settings';
+const KEY_STORE = 'ardukart.ei.key';
+const SETTINGS_KEY = 'ardukart.settings';
+
+// the game was called Q-Kart: carry saved data over to the new keys once
+try {
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith('qkart.') && localStorage.getItem('ardu' + k) === null) localStorage.setItem('ardu' + k, localStorage.getItem(k));
+  }
+} catch (e) { /* storage disabled */ }
 const CHART_SECONDS = 5;
 const AXES = ['x', 'y', 'z'];
 const ACC_COL = ['#ff5a6e', '#46f08b', '#5aa8ff'];
@@ -19,6 +27,7 @@ const state = {
   key: '',
   project: null,       // ei_project response
   hw: null, online: false, installed: null, restartNeeded: false, job: null, owner: undefined,
+  engine: null,        // {pref, active, labels, name, brick}
   buf: [],             // [[ax..gz]] for the live chart
   interval: 16,
   frozen: false,
@@ -145,14 +154,14 @@ function renderBoard() {
     box.append(chip(false, 'Board not responding'));
   } else {
     box.append(chip(hw.movement, 'Movement'), chip(hw.buttons, 'Buttons'), chip(hw.pixels, 'Pixels'),
-      chip(hw.model, hw.model ? `Model: ${hw.name || 'Edge Impulse'}` : 'No model'));
+      chip(!!engineActive(), engineActive() ? `${engineActive() === 'brick' ? 'Brick' : 'MCU'} model: ${state.engine.name || 'Edge Impulse'}` : 'No gesture model'));
     if (hw.sim) box.append(el('span', { class: 'chip sim' }, 'SIMULATED BOARD'));
   }
   const nb = $('#no-board');
   if (!state.online || !hw || !hw.movement) {
     nb.classList.remove('hidden');
     nb.textContent = !net.connected ? 'Connecting to the UNO Q…'
-      : !state.online ? 'The MCU is not sending data yet. Is the Q-Kart app running on the board?'
+      : !state.online ? 'The MCU is not sending data yet. Is the Ardu Kart app running on the board?'
         : 'No Modulino Movement found. Plug it into the Qwiic connector; it is picked up automatically.';
   } else nb.classList.add('hidden');
   renderModelState();
@@ -166,25 +175,46 @@ function onStatus(st) {
   state.restartNeeded = !!st.restartNeeded;
   if ('owner' in st) state.owner = st.owner;
   if (st.hw && st.hw.interval) state.interval = st.hw.interval;
-  if (st.hw && st.hw.labels && st.hw.labels.length) state.labels = st.hw.labels;
+  if (st.engine) state.engine = st.engine;
+  const labels = state.engine ? state.engine.labels : st.hw && st.hw.labels;
+  if (labels && labels.length) state.labels = labels;
   if (st.job && !jobRunning) setJobUi(true, st.job.stage);
   renderBoard();
   renderLabelChips();
 }
 
+const engineActive = () => (state.engine ? state.engine.active : state.hw && state.hw.model ? 'mcu' : null);
+
+function renderEngine() {
+  const eng = state.engine || {};
+  for (const b of document.querySelectorAll('#engine-pick [data-e]')) b.classList.toggle('sel', b.dataset.e === (eng.pref || 'auto'));
+  $('#dep-brick').classList.toggle('active', eng.active === 'brick');
+  $('#dep-mcu').classList.toggle('active', eng.active === 'mcu');
+  $('#engine-where').textContent = eng.active === 'brick' ? 'the Motion detection brick on the Linux side'
+    : eng.active === 'mcu' ? 'the model running on the STM32 MCU' : 'none running yet';
+  if (state.project) $('#studio-deploy').href = `https://studio.edgeimpulse.com/studio/${state.project.project.id}/deployment`;
+}
+
 function renderModelState() {
   const box = $('#model-state');
   box.innerHTML = '';
-  const hw = state.hw, inst = state.installed;
+  renderEngine();
+  const hw = state.hw, inst = state.installed, eng = state.engine || {}, b = eng.brick || {};
   const running = hw && hw.model ? `${hw.name || 'model'}${hw.deploy ? ' · deploy v' + hw.deploy : ''}` : 'no model';
+  const brick = b.state === 'ready' ? `${b.name} · ${b.labels.join(', ')} · ${b.axes} axes, ${b.windowMs} ms window`
+    : b.state === 'error' ? b.error : b.state === 'starting' ? 'starting…' : 'not available (add arduino:motion_detection to app.yaml)';
+  const used = eng.active === 'brick' ? 'Motion detection brick' : eng.active === 'mcu' ? 'model on the MCU'
+    : 'none: the wheel keeps the throttle down';
   box.append(
+    el('div', {}, el('b', {}, 'Game uses: '), used),
+    el('div', {}, el('b', {}, 'Motion detection brick: '), brick),
     el('div', {}, el('b', {}, 'Running on the MCU: '), running),
     el('div', {}, el('b', {}, 'Installed in the sketch: '), inst ? inst.name : 'none'));
   if (state.restartNeeded) {
     box.append(el('div', { class: 'restart' },
       el('b', {}, 'Restart the app to flash the new model. '),
       'In Arduino App Lab press Stop, then Run. Or over SSH:',
-      el('code', {}, 'arduino-app-cli app stop user:q-kart && arduino-app-cli app start user:q-kart'),
+      el('code', {}, 'arduino-app-cli app stop user:ardu-kart && arduino-app-cli app start user:ardu-kart'),
       'The sketch is recompiled with the model, which takes 1–3 minutes.'));
   }
 }
@@ -214,6 +244,7 @@ async function refreshProject() {
 }
 
 function renderProject() {
+  renderEngine();
   const r = state.project;
   const box = $('#project');
   box.innerHTML = '';
@@ -420,7 +451,7 @@ function onJobProgress(m) {
     if (log.textContent.length > 60000) log.textContent = log.textContent.slice(-50000);
     log.scrollTop = log.scrollHeight;
   }
-  if (m.stage === 'done') { setJobUi(false, 'done'); toast(m.installed ? `Installed ${m.installed.name}. Restart the app to flash it.` : 'Job finished'); refreshProject(); }
+  if (m.stage === 'done') { setJobUi(false, 'done'); toast(m.installed ? `Installed ${m.installed.name}. Restart the app to flash it.` : 'Model trained. Deploy it: A · App Lab brick, or B · build for the MCU.'); refreshProject(); }
   else if (m.stage === 'error') {
     for (const li of document.querySelectorAll('#stages li.active')) li.className = 'error';
     setJobUi(false, 'error');
@@ -464,7 +495,7 @@ function renderTest() {
   });
   const top = $('#top-label');
   if (!labels.length) {
-    top.textContent = state.hw && !state.hw.model ? 'No model on the board yet' : '–';
+    top.textContent = state.hw && !engineActive() ? 'No gesture model running yet' : '–';
     top.className = 'top-label muted';
   } else if (!fresh) {
     top.textContent = 'waiting for the model…'; top.className = 'top-label muted';
@@ -478,7 +509,7 @@ function onMl(m) {
   if (m.labels && m.labels.length) state.labels = m.labels;
   state.probs = m.p;
   state.mlAt = performance.now();
-  $('#timing').textContent = `DSP ${m.dsp} ms · NN ${m.nn} ms · on the STM32U585`;
+  $('#timing').textContent = `DSP ${m.dsp} ms · NN ${m.nn} ms · ${m.src === 'brick' ? 'Motion detection brick' : 'on the STM32U585'}`;
   // gesture history (rising edges of non-idle classes)
   const th = threshold();
   let best = 0;
@@ -527,6 +558,13 @@ function init() {
   $('#r-upload').addEventListener('click', () => { if (state.pending) { upload(state.pending); state.pending = null; $('#review').classList.add('hidden'); } });
   for (const b of document.querySelectorAll('#train [data-kind]')) b.addEventListener('click', () => runJob(b.dataset.kind));
   $('#zip').addEventListener('change', (e) => uploadZip(e.target.files[0]));
+  for (const b of document.querySelectorAll('#engine-pick [data-e]')) {
+    b.addEventListener('click', async () => {
+      const r = await net.request('motion_engine', { engine: b.dataset.e });
+      if (r && r.ok) { state.engine = r.engine; if (r.engine.labels.length) state.labels = r.engine.labels; renderBoard(); renderTest(); }
+      else toast(r ? r.error : 'No answer from the board', 'warn');
+    });
+  }
   $('#remove-model').addEventListener('click', async () => {
     if (!confirm('Remove the Edge Impulse model from the sketch? The board keeps running it until the app restarts.')) return;
     const r = await net.request('model_remove', {});

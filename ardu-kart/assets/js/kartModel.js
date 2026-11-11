@@ -1,4 +1,4 @@
-// Q-Kart — procedural karts, drivers, item icons and item meshes.
+// Ardu Kart — procedural karts, drivers, item icons and item meshes.
 // Kart space: +Z forward, +Y up, origin = ground contact centre. Left side = +X.
 import * as THREE from '../libs/three.bundle.js';
 

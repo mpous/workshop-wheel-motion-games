@@ -1,4 +1,4 @@
-// Q-Kart — MCU side of the Arduino UNO Q.
+// Ardu Kart — MCU side of the Arduino UNO Q.
 //
 //  * LED matrix: live race display. Python pushes a compact state string
 //    ("idle", "lobby:n", "count:N", "race:lap:laps:pos", "finish:pos").
@@ -8,6 +8,8 @@
 //  * Edge Impulse: when a model is installed (model_config.h), continuous
 //    motion recognition runs right here on the STM32U585 and the class
 //    probabilities are sent to Python. Gestures flash on the matrix and Pixels.
+//    Without one (or when the App Lab Motion detection brick is selected)
+//    Python sends the brick's gestures back for the same matrix / Pixels effects.
 //  * Modulino Buttons: A / B / C edges are forwarded to Python (Start, Grand
 //    Prix, LAN in the menus; drift, item, pause while racing).
 //  * Modulino Pixels: rev / shift lights driven by the kart speed.
@@ -20,13 +22,13 @@
 #include "led_frames.h"
 #include "model_config.h"
 
-#if QKART_HAS_MODEL
-#include QKART_EI_HEADER
-#define QKART_AXES EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME
-#define QKART_WINDOW_VALUES EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE
-#define QKART_SAMPLE_US ((unsigned long)(EI_CLASSIFIER_INTERVAL_MS * 1000.0f))
+#if ARDUKART_HAS_MODEL
+#include ARDUKART_EI_HEADER
+#define ARDUKART_AXES EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME
+#define ARDUKART_WINDOW_VALUES EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE
+#define ARDUKART_SAMPLE_US ((unsigned long)(EI_CLASSIFIER_INTERVAL_MS * 1000.0f))
 #else
-#define QKART_SAMPLE_US 16000UL          // 62.5 Hz, as in the EI continuous motion tutorial
+#define ARDUKART_SAMPLE_US 16000UL          // 62.5 Hz, as in the EI continuous motion tutorial
 #endif
 
 const unsigned long INFER_STRIDE_MS = 250;   // classify the rolling window 4x per second
@@ -62,6 +64,7 @@ int gestureClass = -1;
 unsigned long gestureAt = 0;
 int topClass = -1;
 float topConfidence = 0;
+bool mcuGestures = true;    // false while Python uses the App Lab Motion detection brick instead
 
 unsigned long nextSampleUs = 0, lastFrame = 0, lastPixels = 0, lastButtons = 0, lastProbe = 0, lastInfo = 0;
 bool prevPressed[3] = {false, false, false};
@@ -70,6 +73,21 @@ static const uint8_t CLASS_RGB[8][3] = {
   {0, 200, 190}, {40, 230, 40}, {255, 40, 30}, {255, 200, 0},
   {40, 120, 255}, {190, 60, 255}, {255, 120, 0}, {255, 255, 255},
 };
+
+// ------------------------------------------------------------------ gesture display
+
+static void showGesture(int cls, const String &label, float confidence) {
+  topClass = cls;
+  topConfidence = confidence;
+  bool fresh = cls != gestureClass || millis() - gestureAt > 900;
+  if (confidence >= GESTURE_CONFIDENCE && !isIdleLabel(label) && fresh) {
+    gestureIcon = gestureIconFor(label);
+    gestureClass = cls;
+    gestureAt = millis();
+  } else if (isIdleLabel(label)) {
+    gestureClass = -1;
+  }
+}
 
 // ------------------------------------------------------------------ Bridge handlers
 
@@ -86,6 +104,18 @@ void onRev(int speed, int flags) {
   revAt = millis();
 }
 
+// Gesture recognised by the Motion detection brick on the Linux side.
+void onGesture(int cls, String label, int pct) {
+  showGesture(cls, label, pct / 100.0f);
+}
+
+// 1: this sketch's model drives the game, 0: the brick does (sent with every heartbeat)
+void onEngine(int mcu) {
+  bool on = mcu != 0;
+  if (on != mcuGestures) { gestureClass = -1; topClass = -1; }
+  mcuGestures = on;
+}
+
 void onButtonLeds(int mask) {
   if (mask != buttonLeds) buttonLedsDirty = true;
   buttonLeds = mask;
@@ -93,19 +123,19 @@ void onButtonLeds(int mask) {
 
 // ------------------------------------------------------------------ Edge Impulse
 
-#if QKART_HAS_MODEL
-static float imuWindow[QKART_WINDOW_VALUES];
-static int axisSource[QKART_AXES];            // model axis -> index in {ax,ay,az,gx,gy,gz}
+#if ARDUKART_HAS_MODEL
+static float imuWindow[ARDUKART_WINDOW_VALUES];
+static int axisSource[ARDUKART_AXES];            // model axis -> index in {ax,ay,az,gx,gy,gz}
 static size_t windowSamples = 0;
 static unsigned long lastInfer = 0;
 
 // Map the impulse axes ("accX + accY + accZ", "gyrZ"...) onto our six channels.
 static void buildAxisMap() {
-  for (int i = 0; i < QKART_AXES; i++) axisSource[i] = i % 6;
+  for (int i = 0; i < ARDUKART_AXES; i++) axisSource[i] = i % 6;
 #ifdef EI_CLASSIFIER_FUSION_AXES_STRING
   String axes = EI_CLASSIFIER_FUSION_AXES_STRING;
   int idx = 0, start = 0;
-  while (idx < QKART_AXES && start <= (int)axes.length()) {
+  while (idx < ARDUKART_AXES && start <= (int)axes.length()) {
     int end = axes.indexOf('+', start);
     if (end < 0) end = axes.length();
     String name = axes.substring(start, end);
@@ -129,7 +159,7 @@ static int classifySignal(size_t offset, size_t length, float *out) {
 
 static void runModel() {
   signal_t signal;
-  signal.total_length = QKART_WINDOW_VALUES;
+  signal.total_length = ARDUKART_WINDOW_VALUES;
   signal.get_data = &classifySignal;
   ei_impulse_result_t result;
   memset(&result, 0, sizeof(result));
@@ -145,29 +175,19 @@ static void runModel() {
   }
   Bridge.notify("ml", probs, (int)result.timing.dsp, (int)result.timing.classification);
 
-  topClass = best;
-  topConfidence = result.classification[best].value;
-  String label = ei_classifier_inferencing_categories[best];
-  bool fresh = best != gestureClass || millis() - gestureAt > 900;
-  if (topConfidence >= GESTURE_CONFIDENCE && !isIdleLabel(label) && fresh) {
-    gestureIcon = gestureIconFor(label);
-    gestureClass = best;
-    gestureAt = millis();
-  } else if (isIdleLabel(label)) {
-    gestureClass = -1;
-  }
+  if (mcuGestures) showGesture(best, ei_classifier_inferencing_categories[best], result.classification[best].value);
 }
 
 static void pushModelSample(const float *v) {
-  if (windowSamples * QKART_AXES >= QKART_WINDOW_VALUES) {
-    memmove(imuWindow, imuWindow + QKART_AXES, (QKART_WINDOW_VALUES - QKART_AXES) * sizeof(float));
+  if (windowSamples * ARDUKART_AXES >= ARDUKART_WINDOW_VALUES) {
+    memmove(imuWindow, imuWindow + ARDUKART_AXES, (ARDUKART_WINDOW_VALUES - ARDUKART_AXES) * sizeof(float));
     windowSamples--;
   }
-  float *dst = imuWindow + windowSamples * QKART_AXES;
-  for (int i = 0; i < QKART_AXES; i++) dst[i] = v[axisSource[i]];
+  float *dst = imuWindow + windowSamples * ARDUKART_AXES;
+  for (int i = 0; i < ARDUKART_AXES; i++) dst[i] = v[axisSource[i]];
   windowSamples++;
   unsigned long now = millis();
-  if (windowSamples * QKART_AXES >= QKART_WINDOW_VALUES && now - lastInfer >= INFER_STRIDE_MS) {
+  if (windowSamples * ARDUKART_AXES >= ARDUKART_WINDOW_VALUES && now - lastInfer >= INFER_STRIDE_MS) {
     lastInfer = now;
     runModel();
   }
@@ -190,8 +210,8 @@ static void sendInfo() {
   s += ";px=";
   s += hasPixels ? '1' : '0';
   s += ";interval=";
-  s += String(QKART_SAMPLE_US / 1000.0f, 2);
-#if QKART_HAS_MODEL
+  s += String(ARDUKART_SAMPLE_US / 1000.0f, 2);
+#if ARDUKART_HAS_MODEL
   s += ";model=1;name=";
   s += EI_CLASSIFIER_PROJECT_NAME;
   s += ";project=";
@@ -204,7 +224,7 @@ static void sendInfo() {
 #ifdef EI_CLASSIFIER_FUSION_AXES_STRING
   s += EI_CLASSIFIER_FUSION_AXES_STRING;
 #else
-  s += QKART_AXES;
+  s += ARDUKART_AXES;
 #endif
   s += ";labels=";
   for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
@@ -224,7 +244,7 @@ static void sampleImu() {
                 movement.getRoll(), movement.getPitch(), movement.getYaw()};
   // g and deg/s on the wire; Python converts acceleration to m/s^2 for Edge Impulse
   Bridge.notify("imu", v[0], v[1], v[2], v[3], v[4], v[5]);
-#if QKART_HAS_MODEL
+#if ARDUKART_HAS_MODEL
   float m[6] = {v[0] * GRAVITY, v[1] * GRAVITY, v[2] * GRAVITY, v[3], v[4], v[5]};
   pushModelSample(m);
 #endif
@@ -319,10 +339,12 @@ void setup() {
   Bridge.provide_safe("led_state", onLedState);
   Bridge.provide_safe("rev", onRev);
   Bridge.provide_safe("btn_leds", onButtonLeds);
+  Bridge.provide_safe("gesture", onGesture);
+  Bridge.provide_safe("ml_engine", onEngine);
 
   Modulino.begin(Wire1);
   probeModulinos();
-#if QKART_HAS_MODEL
+#if ARDUKART_HAS_MODEL
   buildAxisMap();
 #endif
   nextSampleUs = micros();
@@ -332,8 +354,8 @@ void setup() {
 void loop() {
   unsigned long nowUs = micros();
   if ((long)(nowUs - nextSampleUs) >= 0) {
-    nextSampleUs += QKART_SAMPLE_US;
-    if ((long)(nowUs - nextSampleUs) > (long)(QKART_SAMPLE_US * 4)) nextSampleUs = nowUs + QKART_SAMPLE_US;  // fell behind: resync
+    nextSampleUs += ARDUKART_SAMPLE_US;
+    if ((long)(nowUs - nextSampleUs) > (long)(ARDUKART_SAMPLE_US * 4)) nextSampleUs = nowUs + ARDUKART_SAMPLE_US;  // fell behind: resync
     sampleImu();
   }
 

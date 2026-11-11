@@ -1,5 +1,5 @@
 /*
- * Q-Kart LED matrix renderer.
+ * Ardu Kart LED matrix renderer.
  *
  * Pure drawing/parsing helpers for the 8 x 13 matrix of the UNO Q
  * (3-bit grayscale, values 0..7). Everything here only depends on
@@ -91,6 +91,12 @@ static void drawGlyph5x7(uint8_t *fb, int glyph, int row, int col, int v) {
       if (FONT5x7[glyph][r] & (0x10 >> c)) fbSet(fb, row + r, col + c, v);
 }
 
+// 0..99 as one or two 3x5 digits, right-aligned so the last digit sits at col
+static void drawNumber3x5(uint8_t *fb, int n, int row, int col, int v) {
+  if (n >= 10) drawDigit3x5(fb, (n / 10) % 10, row, col - 4, v);
+  drawDigit3x5(fb, n % 10, row, col, v);
+}
+
 // Triangle wave between lo and hi with the given period (ms)
 static int pulse(unsigned long t, unsigned long period, int lo, int hi) {
   unsigned long p = t % period;
@@ -126,18 +132,18 @@ static LedState parseLedState(const String &s) {
   LedState st = {LED_IDLE, 0, 0, 0};
   if (s.startsWith("lobby:")) {
     st.kind = LED_LOBBY;
-    st.a = clampInt(fieldInt(s, 0, 1), 0, 9);
+    st.a = clampInt(fieldInt(s, 0, 1), 0, 20);
   } else if (s.startsWith("count:")) {
     st.kind = LED_COUNT;
     st.a = clampInt(fieldInt(s, 0, 3), 0, 9);
   } else if (s.startsWith("race:")) {
     st.kind = LED_RACE;
-    st.b = clampInt(fieldInt(s, 1, 3), 1, 9);
+    st.b = clampInt(fieldInt(s, 1, 3), 1, 9);   // laps
     st.a = clampInt(fieldInt(s, 0, 1), 1, st.b);
-    st.c = clampInt(fieldInt(s, 2, 1), 1, 9);
+    st.c = clampInt(fieldInt(s, 2, 1), 1, 20);  // position (or players racing)
   } else if (s.startsWith("finish:")) {
     st.kind = LED_FINISH;
-    st.a = clampInt(fieldInt(s, 0, 1), 1, 9);
+    st.a = clampInt(fieldInt(s, 0, 1), 1, 20);
   }
   return st;
 }
@@ -173,7 +179,7 @@ static void renderIdle(uint8_t *fb, unsigned long t, bool dim) {
   }
 }
 
-// lobby:n — pulsing player icon + player count + 8 slot dots
+// lobby:n — pulsing player icon + player count (up to 20) + slot dots
 static void renderLobby(uint8_t *fb, unsigned long t, int n) {
   fbClear(fb);
   int v = pulse(t, 1400, 2, 7);
@@ -182,12 +188,14 @@ static void renderLobby(uint8_t *fb, unsigned long t, int n) {
   for (int r = 0; r < 5; r++)
     for (int c = 0; c < 3; c++)
       if (ICON[r] & (4 >> c)) fbSet(fb, 1 + r, 2 + c, (r == 0) ? 7 : v);
-  // "x" separator
-  fbSet(fb, 3, 6, 2);
-  fbSet(fb, 4, 6, 2);
-  drawDigit3x5(fb, clampInt(n, 0, 9), 1, 8, 7);
-  // 8 grid slots on the bottom row, occupied ones bright
-  for (int i = 0; i < 8; i++) fbSet(fb, 7, 2 + i, i < n ? 6 : 1);
+  n = clampInt(n, 0, 20);
+  if (n < 10) {   // "x" separator
+    fbSet(fb, 3, 6, 2);
+    fbSet(fb, 4, 6, 2);
+  }
+  drawNumber3x5(fb, n, 1, 10, 7);
+  // 10 grid slots on the bottom row, two players each: half lit, then bright
+  for (int i = 0; i < 10; i++) fbSet(fb, 7, 1 + i, n >= 2 * i + 2 ? 6 : (n == 2 * i + 1 ? 3 : 1));
 }
 
 struct LedAnim {
@@ -224,10 +232,13 @@ static void renderCount(uint8_t *fb, unsigned long t, int n) {
 // race:lap:laps:pos — big position, lap number, lap progress bar, speed lines
 static void renderRace(uint8_t *fb, unsigned long t, int lap, int laps, int pos) {
   fbClear(fb);
-  drawGlyph5x7(fb, clampInt(pos, 0, 9), 0, 0, 7);
-  // "L" + lap digit at the top right
-  for (int r = 0; r < 5; r++) fbSet(fb, r, 6, 3);
-  fbSet(fb, 4, 7, 3);
+  if (pos >= 10) drawNumber3x5(fb, clampInt(pos, 10, 20), 1, 4, 7);   // 2 x 3x5 in cols 0-6
+  else drawGlyph5x7(fb, clampInt(pos, 0, 9), 0, 0, 7);
+  // "L" + lap digit at the top right (no room for the "L" next to a two-digit position)
+  if (pos < 10) {
+    for (int r = 0; r < 5; r++) fbSet(fb, r, 6, 3);
+    fbSet(fb, 4, 7, 3);
+  }
   drawDigit3x5(fb, clampInt(lap, 0, 9), 0, 9, 7);
   // speed lines in rows 5-6 of the right block, sweeping right -> left
   unsigned long off = t / 70;
@@ -268,8 +279,13 @@ static void renderFinish(uint8_t *fb, unsigned long t, int pos) {
     }
   }
   if ((t % 2000) < 700) {
-    fbFillRect(fb, 0, 3, 8, 7, 0);
-    drawGlyph5x7(fb, clampInt(pos, 0, 9), 0, 4, 7);
+    if (pos >= 10) {
+      fbFillRect(fb, 0, 2, 8, 9, 0);
+      drawNumber3x5(fb, clampInt(pos, 10, 20), 1, 7, 7);
+    } else {
+      fbFillRect(fb, 0, 3, 8, 7, 0);
+      drawGlyph5x7(fb, clampInt(pos, 0, 9), 0, 4, 7);
+    }
   }
 }
 

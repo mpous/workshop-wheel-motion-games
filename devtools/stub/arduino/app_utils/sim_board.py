@@ -1,11 +1,11 @@
-"""Simulated Modulino wheel for local development (QKART_SIM_BOARD=1).
+"""Simulated Modulino wheel for local development (ARDUKART_SIM_BOARD=1).
 
 Behaves like sketch.ino seen from Python: a 62.5 Hz "imu" stream (g, deg/s),
 "hw" heartbeats every 2 s, "ml" class probabilities 4x per second and "btn"
 edges. With no input the wheel sways gently; the debug API (/api/debug/sim)
 or `command()` sets the tilt, plays a gesture or presses a button.
 
-Env: QKART_SIM_MODEL=0 simulates a board without an Edge Impulse model.
+Env: ARDUKART_SIM_MODEL=0 simulates a board without an Edge Impulse model.
 """
 import math
 import os
@@ -31,7 +31,7 @@ class SimBoard:
     def __init__(self, bridge):
         self.bridge = bridge
         self.lock = threading.Lock()
-        self.model = os.environ.get("QKART_SIM_MODEL", "1") != "0"
+        self.model = os.environ.get("ARDUKART_SIM_MODEL", "1") != "0"
         self.tilt = None            # radians, None = automatic sway
         self.tilt_now = 0.0
         self.gesture = None         # (label, started)
@@ -73,7 +73,7 @@ class SimBoard:
     def _hw(self):
         s = f"v=2;sim=1;mv=1;bt=1;px=1;interval={INTERVAL_MS:.2f}"
         if self.model:
-            s += (";model=1;name=Q-Kart wheel (simulated);project=1;deploy=1;window=1000;"
+            s += (";model=1;name=Ardu Kart wheel (simulated);project=1;deploy=1;window=1000;"
                   "axes=accX + accY + accZ + gyrX + gyrY + gyrZ;labels=" + "|".join(LABELS))
         else:
             s += ";model=0"

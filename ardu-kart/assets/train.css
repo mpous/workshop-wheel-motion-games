@@ -1,4 +1,4 @@
-/* Q-Kart Motion Lab — training / testing page for the Modulino wheel */
+/* Ardu Kart Motion Lab — training / testing page for the Modulino wheel */
 :root {
   --ink: #0b0d1f;
   --panel: rgba(20, 25, 58, 0.88);
@@ -23,7 +23,7 @@ a { color: var(--teal); }
 
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 18px; padding: 12px 24px; background: rgba(8, 10, 30, 0.82); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .brand { display: flex; align-items: baseline; gap: 6px; font: italic 900 26px var(--display); }
-.logo-q { color: var(--teal); text-shadow: 0 0 18px rgba(0, 209, 214, 0.6); }
+.logo-ardu { color: var(--teal); text-shadow: 0 0 18px rgba(0, 209, 214, 0.6); }
 .logo-kart { color: #fff; }
 .brand-sub { font: 800 12px var(--ui); letter-spacing: 0.35em; color: var(--accent); margin-left: 8px; font-style: normal; }
 .top .chips { flex: 1; }
@@ -125,6 +125,17 @@ canvas { width: 100%; height: 170px; display: block; }
 .manual summary { cursor: pointer; color: var(--dim); font-weight: 700; }
 .manual input[type=file] { flex: 1; color: var(--dim); }
 
+/* deploy options */
+.deploy { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.deploy-opt { padding: 12px 14px; border-radius: 12px; background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 0 0 1px var(--line); }
+.deploy-opt.active { box-shadow: inset 0 0 0 2px var(--good); }
+.deploy-opt h3 { margin: 0 0 4px; font: italic 900 15px var(--display); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.deploy-opt h3 .chip { font: 800 11px var(--ui); font-style: normal; }
+.deploy-opt p { margin: 0 0 8px; }
+.howto { margin: 0; padding-left: 20px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.engine-field { margin-top: 12px; }
+@media (max-width: 1250px) { .deploy { grid-template-columns: 1fr; } }
+
 /* test */
 .top-label { font: italic 900 42px var(--display); text-align: center; padding: 10px 0 14px; text-transform: uppercase; color: var(--good); text-shadow: 0 0 30px rgba(70, 240, 139, 0.35); min-height: 76px; }
 .top-label.idle { color: var(--teal); text-shadow: 0 0 30px rgba(0, 209, 214, 0.35); }
@@ -156,3 +167,8 @@ canvas { width: 100%; height: 170px; display: block; }
   .row3 { grid-template-columns: 1fr 1fr; }
   .top { padding: 10px 12px; }
 }
+
+.foot { display: flex; justify-content: flex-end; max-width: 1400px; margin: -16px auto 0; padding: 0 24px 24px; }
+.foot a { display: block; width: 200px; line-height: 0; opacity: 0.92; }
+.foot a:hover { opacity: 1; }
+.foot img { width: 100%; height: auto; }

@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <cassert>
 #include "arduino_shim.h"
-#include "../../q-kart/sketch/led_frames.h"
+#include "../../ardu-kart/sketch/led_frames.h"
 
 static const char SHADE[] = " .:-=+*#";  // 0..7
 
@@ -28,7 +28,10 @@ int main() {
   // parsing
   LedState s;
   s = parseLedState("race:2:3:4"); assert(s.kind == LED_RACE && s.a == 2 && s.b == 3 && s.c == 4);
-  s = parseLedState("race:7:3:12"); assert(s.a == 3 && s.b == 3 && s.c == 9);
+  s = parseLedState("race:7:3:12"); assert(s.a == 3 && s.b == 3 && s.c == 12);
+  s = parseLedState("race:1:3:42"); assert(s.c == 20);
+  s = parseLedState("lobby:25"); assert(s.a == 20);
+  s = parseLedState("finish:17"); assert(s.a == 17);
   s = parseLedState("race:"); assert(s.kind == LED_RACE && s.a == 1 && s.b == 3 && s.c == 1);
   s = parseLedState("count:0"); assert(s.kind == LED_COUNT && s.a == 0);
   s = parseLedState("count:x"); assert(s.kind == LED_COUNT && s.a == 0);
@@ -49,7 +52,10 @@ int main() {
   dump("COUNT 1 (decayed)", "count:1", 12800);
   dump("GO (on)", "count:0", 13080);
   dump("GO (off)", "count:0", 13200);
+  dump("LOBBY 14", "lobby:14", 700);
+  dump("LOBBY 20", "lobby:20", 700);
   dump("RACE P4 lap 2/3", "race:2:3:4", 20000);
+  dump("RACE P17 lap 2/3", "race:2:3:17", 20000);
   dump("RACE P4 lap 2/3 (later)", "race:2:3:4", 20210);
   dump("RACE P1 final lap 3/3 (blink on)", "race:3:3:1", 30000);
   dump("RACE P1 final lap 3/3 (blink off)", "race:3:3:1", 30250);
@@ -57,6 +63,7 @@ int main() {
   dump("FINISH P2 flag frame 0", "finish:2", 41000);
   dump("FINISH P2 flag frame 1", "finish:2", 41180);
   dump("FINISH P2 digit flash", "finish:2", 42100);
+  dump("FINISH P12 digit flash", "finish:12", 42100);
   printf("render tests: OK\n");
   return 0;
 }

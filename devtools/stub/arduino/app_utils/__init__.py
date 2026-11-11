@@ -128,7 +128,7 @@ class Bridge:
     """Stores providers so tests can call them in-process; there is no MCU.
 
     Notifications towards the MCU (no Python provider) are kept in `sent`
-    (method -> last arguments). With QKART_SIM_BOARD=1 a simulated Modulino
+    (method -> last arguments). With ARDUKART_SIM_BOARD=1 a simulated Modulino
     wheel (sim_board.py) streams IMU / model / button data into the providers.
     """
     providers = {}
@@ -138,7 +138,7 @@ class Bridge:
     @staticmethod
     def provide(method_name, handler):
         Bridge.providers[method_name] = handler
-        if method_name == "hw" and Bridge.sim is None and os.environ.get("QKART_SIM_BOARD") == "1":
+        if method_name == "hw" and Bridge.sim is None and os.environ.get("ARDUKART_SIM_BOARD") == "1":
             from . import sim_board
             Bridge.sim = sim_board.SimBoard(Bridge)
             Bridge.sim.start()

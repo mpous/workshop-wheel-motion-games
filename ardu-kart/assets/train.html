@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d1f">
-  <title>Q-Kart Motion Lab · Edge Impulse</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300a9ae'/%3E%3Ctext x='32' y='44' font-size='36' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='white'%3EQ%3C/text%3E%3C/svg%3E">
+  <title>Ardu Kart Motion Lab · Edge Impulse</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300a9ae'/%3E%3Ctext x='32' y='44' font-size='26' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='white'%3EAK%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="train.css">
 </head>
 <body>
   <header class="top">
-    <div class="brand"><span class="logo-q">Q</span><span class="logo-kart">KART</span><span class="brand-sub">MOTION LAB</span></div>
+    <div class="brand"><span class="logo-ardu">ARDU</span><span class="logo-kart">KART</span><span class="brand-sub">MOTION LAB</span></div>
     <div id="board-chips" class="chips"></div>
-    <a class="play" href="./" target="_self">▶ PLAY Q-KART</a>
+    <a class="play" href="./" target="_self">▶ PLAY ARDU KART</a>
   </header>
 
   <main>
@@ -72,9 +72,31 @@
       <div class="card-head"><h2><span class="step">3</span> Train &amp; deploy</h2></div>
       <div id="impulse" class="impulse muted small"></div>
       <div class="row wrap">
-        <button id="j-train" class="ghost" data-kind="retrain">Train</button>
-        <button id="j-build" class="ghost" data-kind="build">Build &amp; install</button>
-        <button id="j-all" class="primary" data-kind="train_build">Train + build + install</button>
+        <button id="j-train" class="primary" data-kind="retrain">Train the model</button>
+        <span class="muted small">then deploy it one of these two ways:</span>
+      </div>
+      <div class="deploy">
+        <div class="deploy-opt" id="dep-brick">
+          <h3>A · Motion detection brick <span class="chip on">recommended</span></h3>
+          <p class="muted small">Runs on the Linux side in App Lab's <b>Motion detection</b> brick. No sketch rebuild; swap models from App Lab.</p>
+          <ol class="howto">
+            <li>Click <b>Train the model</b> above.</li>
+            <li>In Edge Impulse Studio: <b>Deployment</b> → target <b>Arduino UNO Q</b> → <b>Build</b>, then <b>Go to Arduino</b>. <a id="studio-deploy" href="https://studio.edgeimpulse.com" target="_blank" rel="noopener">Open Deployment ↗</a></li>
+            <li>In <b>Arduino App Lab</b> open Ardu Kart, click the <b>Motion detection</b> brick → <b>AI models</b> → <b>Download</b> your model.</li>
+            <li><b>Brick Configuration</b> → select your model → <b>Save</b>, then <b>Run</b> the app.</li>
+          </ol>
+        </div>
+        <div class="deploy-opt" id="dep-mcu">
+          <h3>B · Model on the MCU</h3>
+          <p class="muted small">Built as an Arduino library, installed into the sketch from here and run on the STM32U585. Needs an app restart (sketch recompile).</p>
+          <div class="row wrap">
+            <button id="j-build" class="ghost" data-kind="build">Build &amp; install</button>
+            <button id="j-all" class="ghost" data-kind="train_build">Train + build + install</button>
+          </div>
+        </div>
+      </div>
+      <div class="field engine-field"><label>Gesture engine used by the game</label>
+        <div id="engine-pick" class="chips"><button class="chip pick" data-e="auto">Auto</button><button class="chip pick" data-e="brick">Motion detection brick</button><button class="chip pick" data-e="mcu">Model on the MCU</button></div>
       </div>
       <ol id="stages" class="stages"><li data-s="training">Train</li><li data-s="building">Build library</li><li data-s="downloading">Download</li><li data-s="installing">Install</li><li data-s="done">Ready</li></ol>
       <pre id="log" class="log"></pre>
@@ -92,9 +114,11 @@
       <div id="test-bars" class="bars"></div>
       <div class="field"><label>Confidence threshold <span id="th-val"></span></label><input id="threshold" type="range" min="0.3" max="0.98" step="0.01"></div>
       <div id="history" class="history"></div>
-      <p class="tip">These are the class probabilities computed by the Edge Impulse model running on the STM32 MCU, four times per second. Map classes to kart actions in the game under <b>Settings → Motion controller</b>.</p>
+      <p class="tip">These are the class probabilities of the active gesture engine (<span id="engine-where">Edge Impulse</span>), four times per second. Map classes to kart actions in the game under <b>Train your motion controller</b> on the main menu.</p>
     </section>
   </main>
+
+  <footer class="foot"><a href="https://edgeimpulse.com" target="_blank" rel="noopener"><img src="img/edge-impulse-logo.png" alt="Edge Impulse, a Qualcomm company"></a></footer>
 
   <div id="countdown" class="countdown hidden"></div>
   <div id="toast"></div>
