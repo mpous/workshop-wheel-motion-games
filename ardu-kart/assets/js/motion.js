@@ -31,6 +31,10 @@ const DEG = Math.PI / 180;
 const DEFAULT_RANGE = 35 * DEG;
 const ONLINE_MS = 3000;
 const ML_STALE_MS = 1500;
+// HUD steering wheel (rim, three spokes, hub, top marker)
+const WHEEL_SVG = '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="27" fill="none" stroke="#e9edff" stroke-width="7"/>'
+  + '<path d="M6 30 Q32 22 58 30 M32 38 L32 58" stroke="#e9edff" stroke-width="6" fill="none" stroke-linecap="round"/>'
+  + '<circle cx="32" cy="33" r="8" fill="#2a2f66" stroke="#e9edff" stroke-width="3"/><rect x="29" y="1" width="6" height="11" rx="3" fill="#ff3d6e"/></svg>';
 export const ENGINE_LABEL = { brick: 'MOTION DETECTION BRICK', mcu: 'MODEL ON THE MCU' };
 
 export function defaultAction(label) {
@@ -76,6 +80,8 @@ export class MotionController {
     this.engine = null;      // {pref, active: 'brick' | 'mcu' | null, labels, name, brick}
     this.owner = undefined;
     this.ownerKind = null;   // 'game' | 'lab'
+    this.ownerVisible = false;
+    this.turnRate = 0;       // gyro rate about the steering axis, rad/s, + = right
     this.labels = [];
     this.probs = [];
     this.mlAt = 0;
@@ -112,13 +118,17 @@ export class MotionController {
     this._buildHud();
     // coming back from the Motion Lab tab: this tab drives the wheel again
     window.addEventListener('focus', () => this._autoClaim());
-    document.addEventListener('visibilitychange', () => this._autoClaim());
+    document.addEventListener('visibilitychange', () => {
+      // a hidden tab lets a game tab on screen take the wheel
+      if (this.owned) app.net.send('motion_visible', { visible: !document.hidden });
+      this._autoClaim();
+    });
 
     const n = app.net;
     n.on('connect', () => this._onConnect());
     n.on('hw', (st) => this._onStatus(st));
     n.on('motion_owner', (m) => {
-      this.owner = m ? m.id : null; this.ownerKind = m ? m.kind : null;
+      this._setOwner(m);
       // the release of a held button goes to the new owner, so forget it here
       if (!this.owned) this.buttons.fill(false);
       this._autoClaim(); this._emit('owner');
@@ -159,7 +169,7 @@ export class MotionController {
     if (!st) return;
     if (st.hw) { this.hw = st.hw; this.hwAt = st.online ? performance.now() : 0; }
     this.installed = st.installed;
-    if ('owner' in st) { this.owner = st.owner; this.ownerKind = st.ownerKind || null; }
+    if ('owner' in st) this._setOwner({ id: st.owner, kind: st.ownerKind, visible: st.ownerVisible });
     if (st.engine) {
       if (this.engine && this.engine.active !== st.engine.active) this.probs = [];
       this.engine = st.engine;
@@ -170,17 +180,27 @@ export class MotionController {
     this._emit('status');
   }
 
-  // Take the wheel when it is free, or from the Motion Lab when this tab has
-  // the focus. Game tabs never take it from each other (LAN players' screens).
+  _setOwner(m) {
+    this.owner = m ? m.id : null;
+    this.ownerKind = (m && m.kind) || null;
+    this.ownerVisible = !!(m && m.visible);
+  }
+
+  // Take the wheel when it is free, or, when this tab has the focus, from the
+  // Motion Lab or from a game tab nobody can see (background or old tab).
+  // A LAN player's game on screen keeps it: use takeWheel() for that.
   _autoClaim() {
     if (this.settings.enabled === 'off' || !this.online || !this.app.net.connected || this.owned) return;
     if (this.owner === null) this.claim(false);
-    else if (this.ownerKind === 'lab' && !document.hidden && document.hasFocus()) this.claim(false, true);
+    else if (!document.hidden && document.hasFocus() && (this.ownerKind === 'lab' || !this.ownerVisible)) this.claim(false, true);
   }
 
-  claim(force = true, fromLab = false) {
-    return this.app.net.request('motion_claim', { force, fromLab }).then((r) => {
-      if (r) { this.owner = r.owner; this.ownerKind = r.kind || null; }
+  // "USE THE WHEEL HERE"
+  takeWheel() { return this.claim(true); }
+
+  claim(force = true, focused = false) {
+    return this.app.net.request('motion_claim', { force, focused, visible: !document.hidden }).then((r) => {
+      if (r) this._setOwner({ id: r.owner, kind: r.kind, visible: r.visible });
       this._ledMask = -1;
       this._emit('owner');
       return this.owned;
@@ -239,6 +259,7 @@ export class MotionController {
       bias = this.bias;
     }
     const rate = dot(sub(gyro, bias), axis) * DEG;     // rad/s about the axis, + = right
+    this.turnRate = rate;
     const g = len(acc);
     const accAngle = angleAbout(ref, acc, axis);
     this.rawAngle = accAngle;
@@ -457,9 +478,10 @@ export class MotionController {
   // called every frame by the app: shift lights, button LEDs, HUD
   update() {
     const a = this.app, now = performance.now();
-    if (!this.active || !this.owned) { this._hud.classList.add('hidden'); return; }
     const r = a.race;
     const racing = a.state === 'race' && r && r.mode !== 'attract' && r.player;
+    // in a race the HUD shows whenever the wheel is online, also on a screen that does not drive it
+    if (!this.active || !this.owned) { this._updateHud(racing && this.online && this.settings.enabled !== 'off'); return; }
     if (racing && now - this._revAt > 66) {
       this._revAt = now;
       const k = r.player;
@@ -475,16 +497,21 @@ export class MotionController {
 
   // ------------------------------------------------------------------ HUD
   _buildHud() {
-    this._hudWheel = el('div', { class: 'mh-wheel' }, el('i'));
+    this._hudWheel = el('div', { class: 'mh-wheel', html: WHEEL_SVG });
     this._hudLabel = el('div', { class: 'mh-label' });
     this._hudState = el('div', { class: 'mh-state' });
+    this._hudDir = el('div', { class: 'mh-dir' });
+    this._hudBar = el('i');
+    this._hudGyro = el('div', { class: 'mh-gyro' });
+    this._hudTake = el('button', { class: 'mh-take hidden', type: 'button', onclick: (e) => { e.currentTarget.blur(); this.takeWheel(); } }, 'USE THE WHEEL HERE');
     this._hudEngine = el('div', { class: 'mh-engine' });
     this._hudClasses = el('div', { class: 'mh-classes' });
     this._hudKey = '';
     this._hudMlAt = -1;
     this._hud = el('div', { id: 'motion-hud', class: 'hidden' },
-      el('div', { class: 'mh-head' }, this._hudWheel, el('div', { class: 'mh-text' }, this._hudState, this._hudLabel)),
-      this._hudEngine, this._hudClasses);
+      el('div', { class: 'mh-head' }, this._hudWheel,
+        el('div', { class: 'mh-text' }, this._hudState, this._hudDir, el('div', { class: 'mh-bar' }, this._hudBar), this._hudGyro)),
+      this._hudLabel, this._hudTake, this._hudEngine, this._hudClasses);
     document.body.append(this._hud);
   }
 
@@ -536,13 +563,32 @@ export class MotionController {
   _updateHud(racing) {
     this._hud.classList.toggle('hidden', !racing);
     if (!racing) return;
-    this._hudWheel.style.transform = `rotate(${(-this.steer * 90).toFixed(1)}deg)`;
+    this._updateWheel();
+    const driving = this.owned;
+    this._hudTake.classList.toggle('hidden', driving);
+    this._hud.classList.toggle('idle', !driving);
     const held = (k) => (this.until[k] || 0) > performance.now();
-    const on = this.gasHeld || this.cruise || this.autoGas;
-    const st = held('brake') ? 'BRAKE' : this.gasHeld ? 'GAS' : this.cruise ? 'CRUISE'
+    const on = driving && (this.gasHeld || this.cruise || this.autoGas);
+    const st = !driving ? (this.ownerKind === 'lab' ? 'WHEEL IN THE MOTION LAB' : 'WHEEL ON ANOTHER SCREEN')
+      : held('brake') ? 'BRAKE' : this.gasHeld ? 'GAS' : this.cruise ? 'CRUISE'
       : this.autoGas ? 'AUTO-ACCEL · NO MODEL' : this.hw && this.hw.buttons ? 'HOLD A OR C TO ACCELERATE' : 'COAST · ACCELERATE!';
     if (this._hudState.textContent !== st) this._hudState.textContent = st;
-    this._hudState.className = 'mh-state' + (held('brake') ? ' brake' : on ? ' on' : '');
+    this._hudState.className = 'mh-state' + (!driving ? ' warn' : held('brake') ? ' brake' : on ? ' on' : '');
     this._updateClasses();
+  }
+
+  // steering wheel, angle and gyro rate (live even on a screen that does not drive)
+  _updateWheel() {
+    const s = this.steer;               // + = left
+    this._hudWheel.style.transform = `rotate(${(-s * 90).toFixed(1)}deg)`;
+    const deg = Math.round(Math.abs(this.angle) / DEG);
+    const dir = s > 0.02 ? `◀ LEFT ${deg}°` : s < -0.02 ? `RIGHT ${deg}° ▶` : `STRAIGHT ${deg}°`;
+    if (this._hudDir.textContent !== dir) this._hudDir.textContent = dir;
+    const b = this._hudBar.style, w = Math.abs(s) * 50;
+    b.left = `${s > 0 ? 50 - w : 50}%`;
+    b.width = `${w}%`;
+    const g = this.gyro || [0, 0, 0];
+    const rate = Math.round(this.turnRate / DEG);
+    this._hudGyro.textContent = `GYRO ${rate > 0 ? '+' : ''}${rate}°/s · ${g.map((v) => Math.round(v)).join(' ')}`;
   }
 }

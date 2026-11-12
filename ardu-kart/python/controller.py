@@ -159,6 +159,7 @@ class MotionHub:
         self.changed_model = False    # installed/removed since the app started
         self.owner = None             # sid of the game tab driving with the wheel
         self.owner_kind = None        # "game" or "lab": a game tab takes the wheel back from the Motion Lab
+        self.owner_visible = False    # the owner tab is on screen; a hidden or old tab loses the wheel to a focused game
 
     # ------------------------------------------------------------- MCU -> Python
 
@@ -339,7 +340,8 @@ class MotionHub:
         # the board runs another model than the one on disk: a restart is pending or the compile failed
         mismatch = online and not hw.get("sim") and bool(installed) != running
         return {"online": online, "hw": hw, "installed": installed, "restartNeeded": changed or mismatch,
-                "job": job, "owner": self.owner, "ownerKind": self.owner_kind, "engine": self.engine_status()}
+                "job": job, "owner": self.owner, "ownerKind": self.owner_kind,
+                "ownerVisible": self.owner_visible, "engine": self.engine_status()}
 
     def on_status(self, sid, data):
         st = self.status_payload()
@@ -349,19 +351,40 @@ class MotionHub:
 
     # ------------------------------------------------------------- browser -> MCU
 
+    def _owner_msg(self):
+        return {"id": self.owner, "kind": self.owner_kind, "visible": self.owner_visible}
+
     def on_claim(self, sid, data):
+        # force: "use the wheel here" / Motion Lab. focused: a game tab with the
+        # focus takes it from the Motion Lab or from a game tab nobody can see,
+        # never from another LAN player's game on screen.
         data = data if isinstance(data, dict) else {}
         with self.lock:
             kind = "lab" if data.get("kind") == "lab" else "game"
+            focused = data.get("focused") or data.get("fromLab")
             if data.get("release"):
                 if self.owner == sid:
                     self.owner = self.owner_kind = None
-            elif (data.get("force") or self.owner is None
-                  or (data.get("fromLab") and self.owner_kind == "lab")):
+                    self.owner_visible = False
+            elif (data.get("force") or self.owner is None or self.owner == sid
+                  or (focused and (self.owner_kind == "lab" or not self.owner_visible))):
                 self.owner, self.owner_kind = sid, kind
-            owner, owner_kind = self.owner, self.owner_kind
-        self.ui.send_message("motion_owner", {"id": owner, "kind": owner_kind}, room="motion")
-        return {"owner": owner, "kind": owner_kind}
+                # clients that do not report it (an old tab) count as hidden
+                self.owner_visible = data.get("visible") is True
+            msg = self._owner_msg()
+        self.ui.send_message("motion_owner", msg, room="motion")
+        return {"owner": msg["id"], "kind": msg["kind"], "visible": msg["visible"]}
+
+    def on_visible(self, sid, data):
+        # the owner tab went to the background or came back
+        data = data if isinstance(data, dict) else {}
+        with self.lock:
+            if self.owner != sid:
+                return {"ok": False}
+            self.owner_visible = bool(data.get("visible"))
+            msg = self._owner_msg()
+        self.ui.send_message("motion_owner", msg, room="motion")
+        return {"ok": True}
 
     def _may_drive(self, sid):
         return self.owner is None or self.owner == sid
@@ -449,8 +472,10 @@ class MotionHub:
             released = self.owner == sid
             if released:
                 self.owner = self.owner_kind = None
+                self.owner_visible = False
+                msg = self._owner_msg()
         if released:
-            self.ui.send_message("motion_owner", {"id": None, "kind": None}, room="motion")
+            self.ui.send_message("motion_owner", msg, room="motion")
 
     # ------------------------------------------------------------- Edge Impulse
 
@@ -653,6 +678,7 @@ class MotionHub:
         ui = self.ui
         ui.on_message("motion_status", self.on_status)
         ui.on_message("motion_claim", self.on_claim)
+        ui.on_message("motion_visible", self.on_visible)
         ui.on_message("rev", self.on_rev)
         ui.on_message("ctl_leds", self.on_leds)
         ui.on_message("motion_record", self.on_record)

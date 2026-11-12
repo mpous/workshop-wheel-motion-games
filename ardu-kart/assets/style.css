@@ -427,7 +427,7 @@ body[data-screen='results'] #menus, body[data-screen='gpStandings'] #menus { bac
 .cal-text p { margin: 0 0 16px; line-height: 1.5; color: #dfe4ff; min-height: 3em; }
 .cal-prog { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.1); overflow: hidden; margin-bottom: 18px; }
 .cal-prog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--teal), var(--good)); transition: width 0.15s; }
-#motion-hud { position: fixed; left: calc(var(--s) * 1.4); bottom: calc(var(--s) * 1.4); z-index: 12; display: flex; flex-direction: column; gap: 6px; pointer-events: none; padding: 8px 14px 10px 8px; border-radius: 18px; background: rgba(8, 10, 30, 0.62); box-shadow: inset 0 0 0 1px var(--line); width: 270px; }
+#motion-hud { position: fixed; left: calc(var(--s) * 1.4); bottom: calc(var(--s) * 1.4); z-index: 12; display: flex; flex-direction: column; gap: 6px; pointer-events: none; padding: 8px 14px 10px 8px; border-radius: 18px; background: rgba(8, 10, 30, 0.62); box-shadow: inset 0 0 0 1px var(--line); width: 290px; }
 #motion-hud .mh-head { display: flex; align-items: center; gap: 12px; }
 #motion-hud .mh-engine { font: 800 9.5px var(--ui); letter-spacing: 0.12em; color: var(--teal); padding: 2px 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
 #motion-hud .mh-classes { display: flex; flex-direction: column; gap: 3px; padding-left: 6px; transition: opacity 0.3s; }
@@ -441,13 +441,22 @@ body[data-screen='results'] #menus, body[data-screen='gpStandings'] #menus { bac
 #motion-hud .mh-cls b { text-align: right; font-variant-numeric: tabular-nums; }
 #motion-hud .mh-cls.top span, #motion-hud .mh-cls.top b { color: var(--good); }
 #motion-hud .mh-cls.top i { background: linear-gradient(90deg, var(--good), #bfffd6); }
-#motion-hud .mh-wheel { width: 44px; height: 44px; border-radius: 50%; border: 5px solid #e9edff; position: relative; }
-#motion-hud .mh-wheel i { position: absolute; left: 50%; top: -7px; width: 6px; height: 11px; margin-left: -3px; background: var(--hot); border-radius: 3px; }
-#motion-hud .mh-text { display: flex; flex-direction: column; min-width: 150px; }
+#motion-hud .mh-wheel { width: 64px; height: 64px; flex: none; transition: transform 0.06s linear; }
+#motion-hud .mh-wheel svg { display: block; width: 100%; height: 100%; }
+#motion-hud .mh-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+#motion-hud .mh-dir { font: 900 15px var(--ui); color: #fff; font-variant-numeric: tabular-nums; }
+#motion-hud .mh-bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); }
+#motion-hud .mh-bar::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: rgba(255, 255, 255, 0.5); }
+#motion-hud .mh-bar i { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; border-radius: 3px; background: var(--accent); }
+#motion-hud .mh-gyro { font: 700 10px var(--ui); letter-spacing: 0.06em; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#motion-hud .mh-take { pointer-events: auto; cursor: pointer; margin: 2px 6px 0; padding: 7px 10px; border: 0; border-radius: 10px; font: 900 12px var(--ui); letter-spacing: 0.1em; color: #14151a; background: var(--accent); }
+#motion-hud .mh-take:hover { filter: brightness(1.1); }
+#motion-hud.idle .mh-wheel, #motion-hud.idle .mh-classes { opacity: 0.55; }
 #motion-hud .mh-state { font: 800 12px var(--ui); letter-spacing: 0.12em; color: var(--dim); }
 #motion-hud .mh-state.on { color: var(--good); }
 #motion-hud .mh-state.brake { color: var(--hot); }
-#motion-hud .mh-label { font: italic 900 18px var(--display); color: var(--accent); opacity: 0; }
+#motion-hud .mh-state.warn { color: var(--accent); }
+#motion-hud .mh-label { position: absolute; left: 14px; top: -30px; font: italic 900 22px var(--display); color: var(--accent); opacity: 0; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); }
 #motion-hud .mh-label.pop { animation: mhPop 1.1s ease-out both; }
 @keyframes mhPop { 0% { opacity: 0; transform: scale(1.6); } 12% { opacity: 1; transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (max-width: 900px) {
