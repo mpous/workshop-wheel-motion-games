@@ -100,6 +100,35 @@ const sim = (q) => fetch(BASE + '/api/debug/sim?' + q).then((r) => r.text());
   console.log('lab focused again:', JSON.stringify(await st()));
   await game.bringToFront(); await game.evaluate(() => window.dispatchEvent(new Event('focus'))); await sleep(800);
   console.log('game focused again:', JSON.stringify(await st()));
+  // ---- a second game tab while the first one is on screen and owns the wheel (e.g. an old tab App Lab opened)
+  const game2 = await browser.newPage(); watch(game2, 'game2');
+  await game2.setViewport({ width: 1600, height: 900 });
+  await game2.goto(BASE + '/', { waitUntil: 'load' });
+  await game2.waitForFunction(() => window.ardukart && window.ardukart.motion && window.ardukart.motion.online, { timeout: 30000 });
+  await game2.evaluate(() => window.ardukart.startSolo({ mode: 'race', track: 'sunset', cc: 100, laps: 3 }));
+  await sleep(7000);
+  const hud2 = () => game2.evaluate(() => { const m = window.ardukart.motion, h = document.getElementById('motion-hud');
+    return { owned: m.owned, hud: !h.classList.contains('hidden'), take: !h.querySelector('.mh-take').classList.contains('hidden'),
+      state: h.querySelector('.mh-state').textContent, dir: h.querySelector('.mh-dir').textContent, gyro: h.querySelector('.mh-gyro').textContent,
+      classes: h.querySelectorAll('.mh-cls').length }; });
+  console.log('game2 opened, game1 went to the background, game2 owns the wheel:', (await hud2()).owned);
+  // game1 stays on screen (a second window) and takes the wheel back
+  await game.evaluate(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }); return window.ardukart.motion.takeWheel(); });
+  await sleep(600);
+  await sim('tilt=0.4'); await sleep(900);
+  console.log('game2, wheel on the other screen:', JSON.stringify(await hud2()));
+  await game2.screenshot({ path: OUT + '/game_race_other_screen.png' });
+  await game2.click('#motion-hud .mh-take'); await sleep(800);
+  console.log('game2 after USE THE WHEEL HERE:', JSON.stringify(await hud2()), '| game1 owned:', (await st()).owned);
+  await sim('tilt=-0.4'); await sleep(900);
+  console.log('game2 turning right:', JSON.stringify(await hud2()));
+  await game2.screenshot({ path: OUT + '/game_race_wheel_hud.png' });
+  // game2 goes to the background: the focused game1 takes the wheel by itself
+  await game2.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await sleep(300);
+  await game.bringToFront(); await game.evaluate(() => window.dispatchEvent(new Event('focus'))); await sleep(800);
+  console.log('game2 hidden, game1 focused:', JSON.stringify(await st()), '| game2 owned:', (await hud2()).owned);
+  await sim('tilt=0');
   await game.evaluate(() => { const m = window.ardukart.motion; m.resetCalibration(); });
   console.log('ERRORS:', errs.length ? '\n' + errs.join('\n') : 'none');
   await browser.close();

@@ -137,7 +137,7 @@ Then hard-refresh the browser (Ctrl/Cmd + Shift + R).
 | The brick shows "not available" or keeps retrying | Pick a model in App Lab (Motion detection brick → Brick Configuration) and press Run again. The first start downloads the brick's container, which can take a few minutes. |
 | The game shows the wrong classes | Check **Gesture engine**. With *Auto*, an MCU model installed in the sketch wins over the brick; pick *Motion detection brick* to use the model chosen in App Lab. |
 | Gestures fire while you steer | Record more `idle` data while steering normally. You can also raise **Gesture confidence**. |
-| Two browsers both react to the wheel | Only one screen drives the wheel at a time. Press **Use the wheel on this screen** on the *Train your motion controller* screen. |
+| The wheel doesn't steer, A / C don't accelerate, and the HUD says *Wheel on another screen* | Another tab or browser has the wheel, for example an old tab App Lab opened on a previous **Run**. Press **Use the wheel here** in the HUD, or close the other tabs. A tab in the background loses the wheel by itself to the tab you are looking at. |
 
 ---
 
@@ -236,7 +236,9 @@ Open the game and press **Train your motion controller** on the main menu:
 | Pause | a gesture mapped to *Pause*, or Esc |
 | Menus | A = OK, B = back, C = down; tilt left/right to change options. On the main menu: A Start, B Grand Prix, C LAN |
 
-The HUD in the bottom-left corner shows the wheel angle, the throttle state (GAS / CRUISE / BRAKE), the gesture engine and every class of your model with its confidence in % (the top class is highlighted, the yellow mark is the confidence threshold). Keyboard, gamepad and touch keep working alongside the wheel. With several browsers on the LAN, only one screen drives the wheel. The game takes it automatically when it is free. The Motion Lab takes it while you use it, and the game takes it back as soon as you switch to the game tab or start a race there.
+The HUD in the bottom-left corner shows a steering wheel that turns with yours, the direction and angle (for example *◀ LEFT 23°*), the gyroscope turn rate and raw axes in °/s, the throttle state (GAS / CRUISE / BRAKE), the gesture engine and every class of your model with its confidence in % (the top class is highlighted, the yellow mark is the confidence threshold). Keyboard, gamepad and touch keep working alongside the wheel.
+
+Only one screen drives the wheel at a time. The game takes it when it is free, from the Motion Lab when you switch back to the game tab, and from a game tab in the background (or an old tab). It never takes it from another LAN player's game that is on screen: the HUD then says *Wheel on another screen*, and **Use the wheel here** takes it.
 
 ---
 
@@ -278,6 +280,7 @@ node mp_test.js                   # two headless players race each other
 node mp_test.js 7111 12           # ... or up to 20 players
 # with ARDUKART_SIM_BOARD=1 ARDUKART_DEBUG=1 ARDUKART_PORT=7123 on the server:
 node lab_check.js                 # Motion Lab + wheel steering/gestures/calibration in the game
+node board_probe.js http://my-unoq.local:7000   # on a real board: who owns the wheel, Modulinos, gesture engine
 ```
 `devtools/fake_ei.py` is an offline stand-in for the Edge Impulse API. Run it, then start the server with the `ARDUKART_EI_STUDIO_URL` and `ARDUKART_EI_INGEST_URL` values it prints, and the whole Motion Lab flow (upload, train, build, install) works without an account.
 
