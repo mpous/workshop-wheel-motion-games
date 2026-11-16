@@ -12,7 +12,7 @@ The UNO Q acts as the game server. Its Linux side (Python plus the WebUI brick) 
 See [section 3](#3-the-modulino-wheel-motion-controller--edge-impulse).
 
 ```
-workshop-q-kart/
+workshop-wheel-ardu-kart/
 ├── ardu-kart/            ← the App Lab app (this is what goes on the UNO Q)
 │   ├── app.yaml       ← app metadata, uses the arduino:web_ui and arduino:motion_detection bricks
 │   ├── python/        ← main.py: lobby, race relay, records, LED state
@@ -29,6 +29,8 @@ workshop-q-kart/
 > **More games for the same hardware.** [`ardu-fishing/`](ardu-fishing/README.md) is a 3-minute fishing tournament between UNO Q boards: the gyroscope aims the rod and Edge Impulse gestures cast, reel and unhook.
 >
 > [`ardu-snowball/`](ardu-snowball/README.md) is a 3-minute capture-the-star snowball fight, 3 v 3 against bots or between UNO Q boards on your LAN: the gyroscope aims and Edge Impulse gestures scoop, pack, throw and run.
+>
+> **Build your own.** [`.skills/`](.skills/README.md) has skills for Claude Code (or any AI coding assistant) that explain how these games are built: the architecture, gyroscope aiming, Edge Impulse gestures and the dev tools.
 
 ---
 
@@ -42,7 +44,7 @@ Steps:
 
 1. Open a terminal in this folder:
    ```bash
-   cd ~/Documents/projects/EdgeImpulse/workshop-q-kart
+   cd workshop-wheel-ardu-kart    # the folder you cloned this repo into
    ```
 2. Start the local server:
    ```bash
@@ -78,7 +80,7 @@ You'll need:
 ### Step 1: Copy the app to the board
 
 ```bash
-cd ~/Documents/projects/EdgeImpulse/workshop-q-kart
+cd workshop-wheel-ardu-kart    # the folder you cloned this repo into
 scp -r ardu-kart arduino@my-unoq.local:/home/arduino/ArduinoApps/
 ```
 The password is the one you set during the board's setup.

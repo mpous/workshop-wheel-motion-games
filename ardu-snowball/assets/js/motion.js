@@ -272,7 +272,8 @@ export class MotionController {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       a = a + (1 - k) * d;
     }
-    this.angle = a;
+    // keep it within ±180°: a full roll during a gesture must not leave it a turn away
+    this.angle = Math.atan2(Math.sin(a), Math.cos(a));
     // slow gyro bias tracking while the controller rests
     if (!cal && !shaking && Math.abs(rate) < 3 * DEG) this.bias = this.bias.map((v, i) => v + (gyro[i] - v) * 0.002);
   }
