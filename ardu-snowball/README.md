@@ -62,7 +62,7 @@ Open **Train your motion controller → Train your gestures** (or `http://my-uno
 1. Paste the API key of an Edge Impulse project.
 2. Record 10-second samples of `idle`, `scoop`, `pack`, `throw` and `run`. Repeat the gesture for the whole recording, and press Modulino button A to start one.
 3. Train the model.
-4. Deploy it with option A (Motion detection brick) or option B (model on the MCU), exactly like the Ardu Kart wheel ([main README, section 3](../README.md#3-the-modulino-wheel-motion-controller--edge-impulse)).
+4. Deploy it with option A (Motion detection brick) or option B (model on the MCU), as described in [Deploy the model to the board](../README.md#53-deploy-the-model-to-the-board) in the main README.
 
 The Ardu Kart and Ardu Fishing Motion Labs share the same Edge Impulse key.
 
@@ -80,7 +80,7 @@ The Ardu Kart and Ardu Fishing Motion Labs share the same Edge Impulse key.
 ## Developer tools
 
 ```bash
-# run the server locally with a simulated Modulino controller (from devtools/)
+# run the server locally with a simulated Modulino controller (from devtools/; run ../run_local.sh once first to create the .venv)
 ARDUSNOW_PORT=7322 ARDUKART_SIM_BOARD=1 ARDUSNOW_DEBUG=1 ./run_snowball.sh
 # then open http://localhost:7322, or run the headless checks (screenshots in devtools/shots/snow_*.png):
 node snowball_shot.js all 7322   # menus, solo match, gesture flow via /api/debug/sim, LED states, results
