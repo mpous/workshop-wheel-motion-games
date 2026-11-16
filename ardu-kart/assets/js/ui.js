@@ -97,7 +97,7 @@ export class UI {
 
   reset(name, args) { this.stack = []; this.show(name, args, { push: false }); }
 
-  hide() { this.root.classList.add('hidden'); this.root.innerHTML = ''; this.screen = null; this.app.preview?.canvas.remove(); }
+  hide() { this.root.classList.add('hidden'); this.root.innerHTML = ''; this.screen = null; this.app.onScreen?.(''); this.app.preview?.canvas.remove(); }
 
   get visible() { return !!this.screen; }
 

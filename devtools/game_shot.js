@@ -94,6 +94,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       }
       await shot('results');
     },
+    async retry() {
+      // finish a race, press RETRY on the results screen, and check the new race's HUD and camera
+      await steps.full();
+      const info = () => evalq(() => { const a = window.ardukart, r = a.race, h = a.hudRoot;
+        return JSON.stringify({ st: a.state, scr: a.ui.screen && a.ui.screen.name, t: r && +r.raceTime.toFixed(1), hudHidden: h.classList.contains('hidden'), hudKids: h.children.length,
+          hudOpacity: getComputedStyle(h).opacity, finished: r && r.player.finished, cam: r && r.camera.mode, camPos: r && r.camera.cam.position.toArray().map((v) => +v.toFixed(1)), kart: r && r.player.pos && r.player.pos.toArray().map((v) => +v.toFixed(1)) }); });
+      const btn = await page.$$('.btn');
+      for (const b of btn) { if ((await b.evaluate((e) => e.textContent)).includes('RETRY')) { await b.click(); break; } }
+      await sleep(1500); console.log('QK retry +1.5s', await info()); await shot('retry_1');
+      await sleep(5000); console.log('QK retry +6.5s', await info()); await shot('retry_2');
+    },
   };
   for (const s of scenario.split(',')) await steps[s]();
   console.log('errors:', errors.length);
