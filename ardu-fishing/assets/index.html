@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1a24">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Ardu Fishing · Arduino UNO Q</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300a9ae'/%3E%3Ctext x='32' y='44' font-size='26' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='white'%3EAF%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-screen="boot">
+  <canvas id="game"></canvas>
+  <div id="hud" class="hidden"></div>
+  <div id="menus" class="hidden"></div>
+  <div id="toast"></div>
+  <div id="fps" class="hidden"></div>
+
+  <div id="touch" class="hidden">
+    <div class="t-aim"><div class="t-knob"></div><span>AIM</span></div>
+    <div class="t-btns">
+      <div class="t-unhook">UNHOOK</div>
+      <div class="t-reel">REEL</div>
+      <div class="t-cast">CAST</div>
+    </div>
+    <div class="t-pause" onclick="window.ardufish && window.ardufish.pause()">❚❚</div>
+  </div>
+
+  <a id="ei-logo" href="https://edgeimpulse.com" target="_blank" rel="noopener"><img src="img/edge-impulse-logo.png" alt="Edge Impulse, a Qualcomm company"></a>
+
+  <div id="loader">
+    <div class="loader-logo"><span class="logo-ardu">ARDU</span><span class="logo-kart">FISHING</span></div>
+    <div class="loader-track"><div id="loader-bar"></div></div>
+    <div id="loader-label">Casting off…</div>
+  </div>
+
+  <noscript>Ardu Fishing needs JavaScript and WebGL.</noscript>
+  <script src="libs/socket.io.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

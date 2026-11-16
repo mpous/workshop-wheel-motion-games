@@ -1,0 +1,9 @@
+name: Ardu Snowball
+icon: ❄️
+description: "3D snowball capture-the-star served by the UNO Q - 3 minute matches, 3v3 against bots or with friends on other UNO Q boards over your LAN. Scoop snow, pack snowballs and throw them with a Modulino controller: the gyroscope aims, Edge Impulse gestures scoop / pack / throw / run (Motion detection brick or a model on the MCU), the LED matrix and Pixels show ammo, the star and the score. Train your own gestures in the Motion Lab (/train.html)."
+
+bricks:
+  - arduino:web_ui
+  # Gesture model: click the brick in App Lab to pick your Edge Impulse model
+  # with the classes idle / scoop / pack / throw / run (train it in the Motion Lab).
+  - arduino:motion_detection

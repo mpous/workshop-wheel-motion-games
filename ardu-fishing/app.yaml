@@ -1,0 +1,9 @@
+name: Ardu Fishing
+icon: 🎣
+description: "3D fishing tournament served by the UNO Q - 3 minutes to land the most fish, solo or against friends on other UNO Q boards over your LAN. Fish with a Modulino rod: the gyroscope aims the cast, Edge Impulse gestures cast, reel and unhook (Motion detection brick or a model on the MCU), the Pixels show bites and line tension. Train your own gestures in the Motion Lab (/train.html)."
+
+bricks:
+  - arduino:web_ui
+  # Gesture model: click the brick in App Lab to pick your Edge Impulse model
+  # with the classes idle / cast / reel / unhook (train it in the Motion Lab).
+  - arduino:motion_detection

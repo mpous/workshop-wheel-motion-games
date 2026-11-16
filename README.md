@@ -25,6 +25,11 @@ workshop-q-kart/
 └── devtools/          ← local runner, WebUI brick stub, automated tests
 ```
 
+> [!TIP]
+> **More games for the same hardware.** [`ardu-fishing/`](ardu-fishing/README.md) is a 3-minute fishing tournament between UNO Q boards: the gyroscope aims the rod and Edge Impulse gestures cast, reel and unhook.
+>
+> [`ardu-snowball/`](ardu-snowball/README.md) is a 3-minute capture-the-star snowball fight, 3 v 3 against bots or between UNO Q boards on your LAN: the gyroscope aims and Edge Impulse gestures scoop, pack, throw and run.
+
 ---
 
 ## 1. Run it locally (on your computer)

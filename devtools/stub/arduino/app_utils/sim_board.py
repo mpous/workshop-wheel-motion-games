@@ -6,6 +6,8 @@ edges. With no input the wheel sways gently; the debug API (/api/debug/sim)
 or `command()` sets the tilt, plays a gesture or presses a button.
 
 Env: ARDUKART_SIM_MODEL=0 simulates a board without an Edge Impulse model.
+     ARDUKART_SIM_LABELS="idle,cast,reel,unhook" sets the model classes
+     (default: the Ardu Kart ones).
 """
 import math
 import os
@@ -13,7 +15,7 @@ import random
 import threading
 import time
 
-LABELS = ["idle", "accelerate", "brake", "use_item", "change_camera"]
+LABELS = [l.strip() for l in os.environ.get("ARDUKART_SIM_LABELS", "idle,accelerate,brake,use_item,change_camera").split(",") if l.strip()]
 INTERVAL_MS = 16.0
 GESTURE_MS = 900
 
@@ -24,6 +26,15 @@ SHAPES = {
     "use_item": lambda p: ((0, 0, 1.4 * math.sin(p * math.pi * 6)), (180 * math.sin(p * math.pi * 6), 0, 0)),
     "change_camera": lambda p: ((0.5 * math.sin(p * math.pi * 4), 0.5 * math.cos(p * math.pi * 4), 0),
                                 (0, 0, 240 * math.sin(p * math.pi * 2))),
+    # Ardu Fishing: overhead flick, cranking circles, sharp upward jerk
+    "cast": lambda p: ((1.6 * math.sin(p * math.pi), 0, -0.8 * math.sin(p * math.pi * 2)), (0, -260 * math.sin(p * math.pi), 0)),
+    "reel": lambda p: ((0.4 * math.sin(p * math.pi * 8), 0.4 * math.cos(p * math.pi * 8), 0), (0, 0, 200 * math.sin(p * math.pi * 8))),
+    "unhook": lambda p: ((0, 0, 2.0 * math.exp(-((p - 0.3) * 8) ** 2)), (220 * math.exp(-((p - 0.3) * 8) ** 2), 0, 0)),
+    # Ardu Snowball: low sweeping dig, squeezing rolls, overarm whip, arm pumping
+    "scoop": lambda p: ((0, 1.2 * math.sin(p * math.pi), -0.9 * math.sin(p * math.pi)), (-200 * math.sin(p * math.pi * 2), 0, 0)),
+    "pack": lambda p: ((0.6 * math.sin(p * math.pi * 10), 0, 0), (0, 160 * math.sin(p * math.pi * 10), 0)),
+    "throw": lambda p: ((2.2 * math.exp(-((p - 0.45) * 7) ** 2), 0, -1.0 * math.sin(p * math.pi)), (300 * math.exp(-((p - 0.45) * 7) ** 2), 0, 0)),
+    "run": lambda p: ((0, 0, 1.0 * math.sin(p * math.pi * 6)), (0, 0, 120 * math.sin(p * math.pi * 6))),
 }
 
 
