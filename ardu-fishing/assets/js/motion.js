@@ -5,10 +5,13 @@
 // through the WebUI brick: the board streams "imu" / "ml" / "btn" / "hw" to
 // the Socket.IO room "motion".
 //
-// Aiming works in any mounting: calibration records gravity with the rod
-// pointing straight ahead and turned right, which gives the rotation axis,
-// its sign and the full-aim angle. A complementary filter fuses the gyro rate
-// around that axis with the angle seen by the accelerometer.
+// Aiming works in any mounting. Turning the rod left/right is a yaw about the
+// vertical, which the accelerometer can't see, so it comes from the gyro alone:
+// the rate about gravity, integrated, with the gyro bias tracked while the rod
+// rests. A rod that rolls or tilts instead (like the Kart wheel) also fuses the
+// accelerometer angle with a complementary filter. Calibration records the rod
+// pointing ahead and turned right: the gyro tells which kind of turn it is,
+// its sign and the full-aim angle.
 import { el, clamp } from './util.js';
 
 export const ACTIONS = [
@@ -83,12 +86,15 @@ export class MotionController {
     this.mlAt = 0;
     this.timing = null;
     // aim state
-    this.angle = 0;          // filtered board angle about the aim axis (rad, + = right)
+    this.angle = 0;          // aim angle (rad, + = right) = yaw + tilt
+    this.yaw = 0;            // gyro-only turn about gravity
+    this.tilt = 0;           // filtered roll/tilt about a horizontal axis
     this.rawAngle = 0;
+    this.up = null;          // gravity direction in the board frame, low-passed
     this.steer = 0;          // game convention: + = left
     this.acc = [0, 1, 0];
     this.gyro = [0, 0, 0];
-    this.bias = [0, 0, 0];
+    this.bias = this.settings.cal && this.settings.cal.bias ? this.settings.cal.bias.slice() : [0, 0, 0];
     this.samples = 0;
     this.autoRef = null;     // uncalibrated: gravity at start-up acts as "centre"
     this.autoAcc = [0, 0, 0];
@@ -238,40 +244,65 @@ export class MotionController {
     if (this.capture) this.capture.buf.push(s);
 
     const cal = this.settings.cal;
-    let ref, axis, bias;
-    if (cal) {
-      ({ ref, axis, bias } = cal);
-    } else {
-      // no calibration yet: average the first half second as the centre and
-      // guess the axis (upright rod turns about z, a flat board about y)
-      if (this.autoN < 30) {
-        this.autoAcc = this.autoAcc.map((v, i) => v + acc[i]);
-        this.bias = this.bias.map((v, i) => v + gyro[i] / 30);
-        if (++this.autoN === 30) this.autoRef = norm(this.autoAcc);
-        return;
-      }
-      ref = this.autoRef;
-      axis = Math.abs(ref[2]) < 0.75 ? [0, 0, -1] : [0, -1, 0];
-      bias = this.bias;
-    }
-    const rate = dot(sub(gyro, bias), axis) * DEG;     // rad/s about the axis, + = right
-    this.turnRate = rate;
     const g = len(acc);
-    const accAngle = angleAbout(ref, acc, axis);
-    this.rawAngle = accAngle;
-    // trust the accelerometer only when it measures (mostly) gravity
-    const shaking = Math.abs(g - 1) > 0.22 || len(reject(acc, axis)) < 0.35;
-    const k = shaking ? 1 : 0.96;
-    let a = this.angle + rate * dt;
-    if (!shaking) {
-      // unwrap so the blend never crosses ±180°
-      let d = accAngle - a;
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      a = a + (1 - k) * d;
+    if (!cal && this.autoN < 30) {
+      // no calibration yet: average the first half second as the centre and the gyro bias
+      this.autoAcc = this.autoAcc.map((v, i) => v + acc[i]);
+      this.bias = this.bias.map((v, i) => v + gyro[i] / 30);
+      if (++this.autoN === 30) { this.autoRef = norm(this.autoAcc); this.up = this.autoRef; }
+      return;
     }
-    this.angle = a;
-    // slow gyro bias tracking while the rod rests
-    if (!cal && !shaking && Math.abs(rate) < 3 * DEG) this.bias = this.bias.map((v, i) => v + (gyro[i] - v) * 0.002);
+    const ref = cal ? cal.ref : this.autoRef;
+    if (!this.up) this.up = ref;
+    const w = sub(gyro, this.bias);                    // deg/s
+    const still = len(w) < 3;
+    // trust the accelerometer only when it measures (mostly) gravity
+    const calm = Math.abs(g - 1) < 0.15;
+    if (calm) this.up = norm(this.up.map((v, i) => v + (acc[i] / g - v) * 0.05));
+
+    // yaw: right = clockwise seen from above = negative rotation about "up"
+    let yawRate = 0;
+    if (!cal || cal.mode === 'yaw') {
+      yawRate = (cal ? cal.sign : -1) * dot(w, this.up) * DEG;
+      // like a mouse at the screen edge: turning past full aim moves the centre along
+      const s2 = this.settings, lim = ((cal && cal.range) || DEFAULT_RANGE) / (0.5 + s2.sensitivity) * 1.5;
+      this.yaw = clamp(this.yaw + yawRate * dt, -lim, lim);
+    }
+
+    // tilt / roll about a horizontal axis, gyro fused with the accelerometer
+    let tiltRate = 0;
+    const axis = cal ? (cal.mode === 'yaw' ? null : cal.axis) : this._autoAxis();
+    if (axis) {
+      tiltRate = dot(w, axis) * DEG;
+      const accAngle = angleAbout(ref, acc, axis);
+      this.rawAngle = accAngle;
+      const shaking = Math.abs(g - 1) > 0.22 || len(reject(acc, axis)) < 0.35;
+      let a = this.tilt + tiltRate * dt;
+      if (!shaking) {
+        // unwrap so the blend never crosses ±180°
+        let d = accAngle - a;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        a = a + 0.04 * d;
+      }
+      this.tilt = a;
+    }
+    this.turnRate = yawRate + tiltRate;
+    this.angle = this.yaw + this.tilt;
+    // slow gyro bias tracking while the rod rests (temperature drift)
+    if (still && calm) this.bias = this.bias.map((v, i) => v + (gyro[i] - v) * 0.003);
+  }
+
+  // uncalibrated roll axis: the board normal for an upright board, y for a flat one,
+  // made horizontal so it never double counts the yaw
+  _autoAxis() {
+    if (!this._axisFor || this._axisFor !== this.autoRef) {
+      const ref = this.autoRef;
+      const guess = Math.abs(ref[2]) < 0.75 ? [0, 0, -1] : [0, -1, 0];
+      const h = reject(guess, ref);
+      this._axisFor = ref;
+      this._axis = len(h) > 0.5 ? norm(h) : null;
+    }
+    return this._axis;
   }
 
   _updateSteer() {
@@ -316,28 +347,48 @@ export class MotionController {
       c.resolve(this._calCentre);
       return;
     }
-    // right: wait until the rod is clearly turned and held still
+    // right: integrate the gyro until the rod is clearly turned and held still
     const centre = this._calCentre;
     const last = c.buf.slice(-20);
+    if (!c.rot) { c.rot = [0, 0, 0]; c.n = 0; }
+    for (; c.n < c.buf.length; c.n++) {
+      const s = c.buf[c.n];
+      c.rot = c.rot.map((v, i) => v + (s[3 + i] - centre.bias[i]) * 0.016 * DEG);
+    }
     if (last.length < 20) return;
-    const accM = norm([0, 1, 2].map((i) => last.reduce((t, s) => t + s[i], 0) / last.length));
-    const turned = Math.acos(clamp(dot(accM, centre.ref), -1, 1));
-    const spread = Math.max(...last.map((s) => len(sub(norm([s[0], s[1], s[2]]), accM))));
+    const turned = len(c.rot);
+    const moving = Math.max(...last.map((s) => len(sub([s[3], s[4], s[5]], centre.bias))));
     c.progress = clamp(turned / (25 * DEG), 0, 1);
-    if (turned < 15 * DEG || spread > 0.06) { c.buf = c.buf.slice(-40); return; }
+    if (turned < 15 * DEG || moving > 8) return;
     this.capture = null;
-    const axis = norm(cross(accM, centre.ref));      // positive rotation about it = right turn
+    const accM = norm([0, 1, 2].map((i) => last.reduce((t, s) => t + s[i], 0) / last.length));
+    const spin = norm(c.rot);                         // positive rotation about it = right turn
+    const vert = dot(spin, centre.ref);
     const range = clamp(turned * 0.85, 12 * DEG, 80 * DEG);
-    const cal = { ref: centre.ref, axis, bias: centre.bias, range, at: Date.now() };
+    let cal;
+    if (Math.abs(vert) > 0.7) {
+      // turned about the vertical: gyro only
+      cal = { mode: 'yaw', ref: centre.ref, sign: Math.sign(vert), bias: centre.bias, range, at: Date.now() };
+    } else {
+      const seen = len(cross(accM, centre.ref)) > Math.sin(8 * DEG);
+      const axis = seen ? norm(cross(accM, centre.ref)) : norm(reject(spin, centre.ref));
+      cal = { mode: 'tilt', ref: centre.ref, axis, bias: centre.bias, range, at: Date.now() };
+    }
     this.settings.cal = cal;
-    this.angle = angleAbout(cal.ref, accM, cal.axis);
+    this.bias = centre.bias.slice();
+    this.up = norm(accM);
+    // the rod is now at full right
+    this.yaw = cal.mode === 'yaw' ? turned : 0;
+    this.tilt = cal.mode === 'tilt' ? angleAbout(cal.ref, accM, cal.axis) : 0;
+    this.angle = this.yaw + this.tilt;
     this.app.saveSettings();
     c.resolve(cal);
   }
 
   resetCalibration() {
     this.settings.cal = null;
-    this.autoN = 0; this.autoAcc = [0, 0, 0]; this.bias = [0, 0, 0]; this.angle = 0;
+    this.autoN = 0; this.autoAcc = [0, 0, 0]; this.bias = [0, 0, 0];
+    this.angle = this.yaw = this.tilt = 0; this.up = null;
     this.app.saveSettings();
   }
 
@@ -345,7 +396,7 @@ export class MotionController {
     // keep the axis, take the current pose as straight ahead
     const cal = this.settings.cal;
     if (cal) { cal.ref = norm(this.acc); this.app.saveSettings(); } else { this.autoRef = norm(this.acc); }
-    this.angle = 0;
+    this.angle = this.yaw = this.tilt = 0;
   }
 
   // ------------------------------------------------------------------ gestures
