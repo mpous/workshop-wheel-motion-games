@@ -117,6 +117,7 @@ ARDUKART_SIM_BOARD=1 ARDUFISH_DEBUG=1 ARDUFISH_PORT=7311 ./run_fishing.sh
 # then open http://localhost:7311, or run the headless checks:
 node fish_shot.js menus 7311        # screenshots of every menu
 node fish_shot.js play 7311         # an autopilot plays a solo match
+node aim_check.mjs                  # the rod's aim filter, held and turned in different ways
 # two players in one tournament (start the server with ARDUFISH_MATCH_MS=40000 for a short match)
 node fish_tourney.js 7311
 ```
