@@ -24,7 +24,7 @@ Rules:
 2. **One big `idle` class that includes the aiming or steering motion.** The gyroscope aims all the time, so `idle` must cover holding the controller, turning or tilting it to aim, and small nervous moves. Otherwise aiming triggers gestures. Record more `idle` than any other class.
 3. **Distinct gestures.** Different axes or rhythms (a flick vs. circles vs. a shake). Each gesture is repeated continuously for the whole recording (continuous motion recognition, "10 s ≈ 8–10 gestures" in `train.html`).
 4. **Name labels so `defaultAction()` maps them** (section 5). Then no manual remapping is needed.
-5. About 1 minute per class, for example six 10 s recordings (main `README.md` section 3.3).
+5. About 1 minute per class, for example six 10 s recordings (main `README.md` section 5.2).
 
 | Game | `DEFAULT_LABELS` (`motion.js`) | Gesture ideas (README / `train.html`) |
 |---|---|---|

@@ -2,7 +2,7 @@
 
 Ardu Fishing is a 3-minute fishing match on a mountain lake. Watch the water for signs of fish (ripples, bubbles, jumps, dark shadows and the odd golden shimmer), aim your rod at one, cast close to it, fight the fish without snapping the line, and unhook it. Whoever lands the most fish wins; ties go to total weight. There are 7 species, from a common Perch to the legendary Golden Koi.
 
-It uses exactly the same hardware as Ardu Kart: an Arduino UNO Q with a **Modulino Movement**, a **Modulino Buttons** and a **Modulino Pixels**. Mount them on a stick and you have a rod:
+It uses exactly the same hardware as [Ardu Kart](../ardu-kart/README.md): an Arduino UNO Q with a **Modulino Movement**, a **Modulino Buttons** and a **Modulino Pixels**. Mount them on a stick and you have a rod:
 
 - The **gyroscope aims the cast**: turn the rod left or right to sweep across the lake. The fish finder at the bottom of the screen shows where the signs are.
 - An **Edge Impulse model** recognises three gestures, each with its own class: **`cast`** throws the line (a cleaner gesture lands closer to the fish), **`reel`** pulls the hooked fish in, and **`unhook`** takes it off the hook. A fourth class, **`idle`**, covers everything else.
@@ -63,7 +63,7 @@ Up to 20 anglers fit in a lobby; the live board in the match shows the top 8. Ea
 
 ## 3. Train the gestures
 
-The Edge Impulse setup is the same as for Ardu Kart (see [section 3 of the main README](../README.md#3-the-modulino-wheel-motion-controller--edge-impulse)), with these classes:
+The Edge Impulse setup is the same for every game (see [Train your gestures with Edge Impulse](../README.md#5-train-your-gestures-with-edge-impulse) in the main README), with these classes:
 
 | Class | Gesture idea |
 |---|---|
@@ -107,12 +107,12 @@ The buttons cast at a fixed strength, which you can change under **Settings → 
 | Gestures fire while you aim | Record more `idle` data while turning the rod, or raise **Gesture confidence**. |
 | The line keeps snapping | Stop reeling when the tension bar turns red, and tilt the rod against the fish when it runs. |
 
-The rest of the Ardu Kart troubleshooting table (brick, model install, Modulinos) applies here too.
+The [shared troubleshooting table](../README.md#troubleshooting) in the main README covers the board, the brick, model installs and the Modulinos.
 
 ## Developer tools
 
 ```bash
-# run the server locally with a simulated rod (from devtools/)
+# run the server locally with a simulated rod (from devtools/; run ../run_local.sh once first to create the .venv)
 ARDUKART_SIM_BOARD=1 ARDUFISH_DEBUG=1 ARDUFISH_PORT=7311 ./run_fishing.sh
 # then open http://localhost:7311, or run the headless checks:
 node fish_shot.js menus 7311        # screenshots of every menu
