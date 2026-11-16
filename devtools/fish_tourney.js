@@ -3,8 +3,10 @@
 // usage: node fish_tourney.js [port]
 const puppeteer = require('puppeteer-core');
 const path = require('path');
+const fs = require('fs');
 const port = process.argv[2] || 7311;
 const outDir = path.join(__dirname, 'shots');
+fs.mkdirSync(outDir, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // the same autopilot as fish_shot.js "play"

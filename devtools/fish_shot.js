@@ -1,5 +1,5 @@
 // Drives Ardu Fishing in headless Chrome and saves screenshots.
-// usage: node fish_shot.js [menus|play|rod] [port]
+// usage: node fish_shot.js [menus|play] [port]
 const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
