@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c1d33">
+  <title>Ardu Snowball Motion Lab · Edge Impulse</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300a9ae'/%3E%3Ctext x='32' y='44' font-size='26' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='white'%3EAS%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="train.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo-ardu">ARDU</span><span class="logo-kart">SNOWBALL</span><span class="brand-sub">MOTION LAB</span></div>
+    <div id="board-chips" class="chips"></div>
+    <a class="play" href="./" target="_self">▶ PLAY ARDU SNOWBALL</a>
+  </header>
+
+  <main>
+    <!-- live sensor data -->
+    <section class="card wide" id="live">
+      <div class="card-head">
+        <h2>Modulino Movement · live</h2>
+        <div class="head-right"><span id="rate" class="muted">–</span><button id="freeze" class="ghost">Pause chart</button></div>
+      </div>
+      <div class="charts">
+        <div class="chart-wrap"><div class="chart-title">Accelerometer <span class="muted">(g)</span><span class="legend" id="leg-acc"></span></div><canvas id="chart-acc"></canvas></div>
+        <div class="chart-wrap"><div class="chart-title">Gyroscope <span class="muted">(°/s)</span><span class="legend" id="leg-gyr"></span></div><canvas id="chart-gyr"></canvas></div>
+      </div>
+      <div id="no-board" class="banner hidden"></div>
+    </section>
+
+    <!-- gesture guide -->
+    <section class="card wide" id="guide">
+      <div class="card-head"><h2>The five gestures of Ardu Snowball</h2><span class="muted small">hold the Modulino in your throwing hand, buttons facing up</span></div>
+      <div class="guide">
+        <div class="g"><b>scoop</b><span>Hand down and forward, a low sweeping dig towards you, like scraping snow off the ground.</span><small>grabs a handful of snow (only on snow)</small></div>
+        <div class="g"><b>pack</b><span>Short fast squeezes and small rolls of the wrist, like pressing snow between two palms.</span><small>turns two handfuls into a snowball (max 3)</small></div>
+        <div class="g"><b>throw</b><span>Hand back by the ear, then an overarm whip forward that stops sharply. Harder throws score higher confidence.</span><small>launches a snowball; confidence = power</small></div>
+        <div class="g"><b>run</b><span>Pump the arm up and down like sprinting, a steady rhythm.</span><small>sprints while the gesture lasts (~0.6 s per detection)</small></div>
+        <div class="g"><b>idle</b><span>Hold the controller still and tilt it slowly left / right / up / down, small nervous moves.</span><small>nothing happens: aiming with the gyro never fires a gesture</small></div>
+      </div>
+    </section>
+
+    <!-- 1 connect -->
+    <section class="card" id="ei">
+      <div class="card-head"><h2><span class="step">1</span> Edge Impulse project</h2><a id="studio-link" class="hidden" target="_blank" rel="noopener">Open Studio ↗</a></div>
+      <p class="muted small">Create a project at <a href="https://studio.edgeimpulse.com" target="_blank" rel="noopener">studio.edgeimpulse.com</a>, then copy its API key from <b>Dashboard → Keys</b>. The key is only sent to this board, which talks to Edge Impulse for you.</p>
+      <form id="key-form" class="row" autocomplete="off">
+        <input id="api-key" type="password" placeholder="ei_…" spellcheck="false" autocomplete="off">
+        <button id="connect" class="primary" type="submit">Connect</button>
+      </form>
+      <label class="check"><input id="remember" type="checkbox" checked> Remember the key in this browser</label>
+      <div id="project" class="project hidden"></div>
+    </section>
+
+    <!-- 2 record -->
+    <section class="card" id="rec">
+      <div class="card-head"><h2><span class="step">2</span> Record gestures</h2><span id="rec-count" class="muted"></span></div>
+      <div class="field"><label>Label</label>
+        <input id="label" type="text" maxlength="64" value="throw" spellcheck="false">
+        <div id="label-chips" class="chips small"></div>
+      </div>
+      <div class="row3">
+        <div class="field"><label>Length</label>
+          <select id="length"><option value="2000">2 s</option><option value="5000">5 s</option><option value="10000" selected>10 s</option><option value="20000">20 s</option></select></div>
+        <div class="field"><label>Dataset</label>
+          <select id="category"><option value="training">Training</option><option value="testing">Testing</option><option value="split">Auto 80/20</option></select></div>
+        <div class="field"><label>After recording</label>
+          <select id="after"><option value="upload">Upload</option><option value="review">Review first</option></select></div>
+      </div>
+      <button id="record" class="record">● RECORD <small>or press Modulino button A</small></button>
+      <div id="rec-status" class="rec-status hidden"><div class="rec-big"></div><div class="rec-bar"><i></i></div></div>
+      <div id="review" class="review hidden">
+        <canvas id="chart-sample"></canvas>
+        <div class="row"><span id="review-info" class="muted"></span><span class="grow"></span>
+          <button id="r-discard" class="ghost">Discard</button><button id="r-download" class="ghost">Download JSON</button><button id="r-upload" class="primary">Upload</button></div>
+      </div>
+      <ul id="samples" class="samples"></ul>
+      <p class="tip">Continuous motion recognition: repeat the gesture over and over for the whole recording (10 s ≈ 8–10 gestures). Record <b>idle</b> too: holding the controller and tilting it to aim, so aiming never triggers a gesture.</p>
+    </section>
+
+    <!-- 3 train -->
+    <section class="card" id="train">
+      <div class="card-head"><h2><span class="step">3</span> Train &amp; deploy</h2></div>
+      <div id="impulse" class="impulse muted small"></div>
+      <div class="row wrap">
+        <button id="j-train" class="primary" data-kind="retrain">Train the model</button>
+        <span class="muted small">then deploy it one of these two ways:</span>
+      </div>
+      <div class="deploy">
+        <div class="deploy-opt" id="dep-brick">
+          <h3>A · Motion detection brick <span class="chip on">recommended</span></h3>
+          <p class="muted small">Runs on the Linux side in App Lab's <b>Motion detection</b> brick. No sketch rebuild; swap models from App Lab.</p>
+          <ol class="howto">
+            <li>Click <b>Train the model</b> above.</li>
+            <li>In Edge Impulse Studio: <b>Deployment</b> → target <b>Arduino UNO Q</b> → <b>Build</b>, then <b>Go to Arduino</b>. <a id="studio-deploy" href="https://studio.edgeimpulse.com" target="_blank" rel="noopener">Open Deployment ↗</a></li>
+            <li>In <b>Arduino App Lab</b> open Ardu Snowball, click the <b>Motion detection</b> brick → <b>AI models</b> → <b>Download</b> your model.</li>
+            <li><b>Brick Configuration</b> → select your model → <b>Save</b>, then <b>Run</b> the app.</li>
+          </ol>
+        </div>
+        <div class="deploy-opt" id="dep-mcu">
+          <h3>B · Model on the MCU</h3>
+          <p class="muted small">Built as an Arduino library, installed into the sketch from here and run on the STM32U585. Needs an app restart (sketch recompile).</p>
+          <div class="row wrap">
+            <button id="j-build" class="ghost" data-kind="build">Build &amp; install</button>
+            <button id="j-all" class="ghost" data-kind="train_build">Train + build + install</button>
+          </div>
+        </div>
+      </div>
+      <div class="field engine-field"><label>Gesture engine used by the game</label>
+        <div id="engine-pick" class="chips"><button class="chip pick" data-e="auto">Auto</button><button class="chip pick" data-e="brick">Motion detection brick</button><button class="chip pick" data-e="mcu">Model on the MCU</button></div>
+      </div>
+      <ol id="stages" class="stages"><li data-s="training">Train</li><li data-s="building">Build library</li><li data-s="downloading">Download</li><li data-s="installing">Install</li><li data-s="done">Ready</li></ol>
+      <pre id="log" class="log"></pre>
+      <div id="model-state" class="model-state"></div>
+      <details class="manual"><summary>Install a library .zip manually</summary>
+        <p class="muted small">In Studio: <b>Deployment → Arduino library → Build</b>, then pick the downloaded zip here.</p>
+        <div class="row"><input id="zip" type="file" accept=".zip,application/zip"><button id="remove-model" class="ghost danger">Remove model</button></div>
+      </details>
+    </section>
+
+    <!-- 4 test -->
+    <section class="card" id="test">
+      <div class="card-head"><h2><span class="step">4</span> Test the model</h2><span id="timing" class="muted"></span></div>
+      <div id="top-label" class="top-label">–</div>
+      <div id="test-bars" class="bars"></div>
+      <div class="field"><label>Confidence threshold <span id="th-val"></span></label><input id="threshold" type="range" min="0.3" max="0.98" step="0.01"></div>
+      <div id="history" class="history"></div>
+      <p class="tip">These are the class probabilities of the active gesture engine (<span id="engine-where">Edge Impulse</span>), four times per second. Map classes to snowball actions in the game under <b>Train your motion controller</b> on the main menu.</p>
+    </section>
+  </main>
+
+  <footer class="foot"><a href="https://edgeimpulse.com" target="_blank" rel="noopener"><img src="img/edge-impulse-logo.png" alt="Edge Impulse, a Qualcomm company"></a></footer>
+
+  <div id="countdown" class="countdown hidden"></div>
+  <div id="toast"></div>
+
+  <script src="libs/socket.io.min.js"></script>
+  <script type="module" src="js/train.js"></script>
+</body>
+</html>

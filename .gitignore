@@ -10,3 +10,15 @@ ardu-kart/sketch/libraries/
 ardu-kart/sketch/build/
 ardu-kart.zip
 tracks.svg
+devtools/data-fishing/
+devtools/sketch_test/fish_render_test
+ardu-fishing/sketch/libraries/
+ardu-fishing/sketch/build/
+ardu-fishing/data/
+ardu-fishing.zip
+devtools/data-snowball/
+devtools/sketch_test/snow_render_test
+ardu-snowball/sketch/libraries/
+ardu-snowball/sketch/build/
+ardu-snowball/data/
+ardu-snowball.zip
