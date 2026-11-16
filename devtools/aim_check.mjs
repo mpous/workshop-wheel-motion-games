@@ -78,3 +78,21 @@ run('3 min still, drifting bias (every 15 s)', [0, 1, 0], [0, -1, 0], () => 0,
   { secs: 180, every: 937, bias: (t) => [0.8 + t / 90, -0.5, 1.2 + t / 90] });
 // casting at 4 s must not move the aim much
 run('cast flick at 4 s (pitch)', [0, 1, 0], [0, -1, 0], (t) => (t < 1 ? 0 : t < 2 ? (t - 1) * 15 * DEG : 15 * DEG), { secs: 8, flick: { at: 4, axis: [1, 0, 0] } });
+
+// a reel gesture that spins the board a full turn about its roll axis while shaking,
+// then the rod rests at the centre: the aim must come back to 0
+{
+  const m = controller();
+  const spin = (t) => (t < 2 ? 0 : t < 3 ? (t - 2) * 2 * Math.PI : 2 * Math.PI);
+  let prev = 0;
+  const out = [];
+  for (let i = 0; i < 8 / DT; i++) {
+    const t = i * DT, a = spin(t), rate = (a - prev) / DT / DEG; prev = a;
+    const axis = [0, -1, 0], g = rot([0, 0, 1], axis, -a);
+    const shake = t >= 2 && t < 3 ? 1.5 : 1;            // the gesture adds acceleration
+    const s = [...g.map((v) => v * shake + noise(0.01)), ...axis.map((v, j) => v * rate + [0.8, -0.5, 1.2][j] + noise(0.4))];
+    m._sample(s, DT); m._updateSteer();
+    if (i % 62 === 0) out.push((-m.steer).toFixed(2));
+  }
+  console.log('full roll while reeling, then still'.padEnd(34), out.join(' '), ` angle=${Math.round(m.angle / DEG)}°`);
+}
