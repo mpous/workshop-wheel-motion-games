@@ -1,32 +1,15 @@
 # Motion games for the Arduino UNO Q, controlled with Edge Impulse
 
-Three 3D browser games where your hands are the controller. An Arduino UNO Q with three Modulinos becomes a steering wheel, a fishing rod or a snowball-throwing hand:
+This repositoy has been built for a workshop during the Talent Arena Upskilling Week in November 2026. The main goal of the workshop is to enable the developers to train their own motion controller using the Arduino UNO Q, modulinos and Edge Impulse. At the end of the workshop they will be able to participate in a fishing tournament using their own custom ML model with continuous motion recognition on the UNO Q with Edge Impulse.
+
+<img width="800" alt="Talent Arena Upskilling Week Workshop: Train your own Motion Controller" src="https://github.com/user-attachments/assets/77aad852-74b9-45b3-bbe5-44cd78d100ca" />
+
+Here you will find three 3D browser games where your hands are the controller. An Arduino UNO Q with three Modulinos becomes a steering wheel, a fishing rod or a snowball-throwing hand:
 
 - **Aiming and steering:** the gyroscope and accelerometer.
-- **Actions:** gestures recognised by a motion model that you record and train with [Edge Impulse](https://edgeimpulse.com), right from the board.
+- **Actions:** gestures recognised by a motion model that you record and train with [Edge Impulse]](https://edgeimp.com/ta-july26), right from the board.
 
-The UNO Q runs the whole game. Its Linux side serves the game and the training page, and runs the lobby. Its microcontroller reads the Modulinos and drives the LED matrix. Players open the game in any browser on the same Wi-Fi.
-
-| | Game | You are holding | Gesture classes to train | Multiplayer |
-|---|---|---|---|---|
-| 🏎️ | **[Ardu Kart](ardu-kart/README.md)**: an arcade kart racer with 8 characters, 4 tracks, items, drifts and a Grand Prix | a wheel: tilt to steer | `idle`, `accelerate`, `brake`, `use_item`, `change_camera` | up to 20 browsers on one board |
-| 🎣 | **[Ardu Fishing](ardu-fishing/README.md)**: a 3-minute fishing tournament on a mountain lake, with 7 species | a rod: turn to aim the cast | `idle`, `cast`, `reel`, `unhook` | a tournament between UNO Q boards |
-| ❄️ | **[Ardu Snowball](ardu-snowball/README.md)**: a 3-minute 3 v 3 capture-the-star snowball fight | your throwing hand: tilt to aim | `idle`, `scoop`, `pack`, `throw`, `run` | 3 v 3 between UNO Q boards, bots fill the gaps |
-
-All three games share the same hardware, the same training page (the **Motion Lab**) and the same two ways to run the model. Each game has its own gesture model, because each game needs different gestures. Once you've built one, the others take only a recording session.
-
-**Contents**
-
-1. [What you need](#1-what-you-need)
-2. [Get the code](#2-get-the-code)
-3. [Try a game on your computer](#3-try-a-game-on-your-computer)
-4. [Run a game on the UNO Q](#4-run-a-game-on-the-uno-q)
-5. [Train your gestures with Edge Impulse](#5-train-your-gestures-with-edge-impulse)
-6. [Play together](#6-play-together)
-7. [Developer tools](#7-developer-tools)
-8. [Build your own game](#8-build-your-own-game)
-
-[Troubleshooting](#troubleshooting) · [Repository layout](#repository-layout)
+The Arduino UNO Q runs the whole game. Its Linux side serves the game and the training page, and runs the lobby. Its microcontroller reads the Modulinos and drives the LED matrix. Players open the game in any browser on the same Wi-Fi.
 
 ---
 
@@ -43,20 +26,19 @@ All three games share the same hardware, the same training page (the **Motion La
 | Qwiic cables and a USB-C power supply (5 V, 3 A) or power bank | Chain the Modulinos into the UNO Q's Qwiic connector |
 | Something to mount it on | A 3D-printed or cardboard wheel, a stick for the rod, or just your hand |
 
+<img width="800" alt="Motion Controller Arduino UNO Q and Modulinos" src="https://github.com/user-attachments/assets/598a3616-28c1-4947-be9c-3ffb6fce72e5" />
+
 **Mounting:**
 
 - Mount the board in any orientation. The calibration finds the axis.
 - Every Modulino is optional and hot-pluggable. Without Buttons or a model, the games fall back to sensible defaults, and a keyboard, gamepad or touch screen always works too.
-- For the tournaments in Ardu Fishing and Ardu Snowball, every player needs their own kit.
+- For the tournaments in Ardu Fishing every player needs their own kit.
 
 ### Software
 
 - **Arduino App Lab**, with the UNO Q set up and connected to your Wi-Fi. The board's first-time setup happens in App Lab.
-- A free **Edge Impulse** account at [studio.edgeimpulse.com](https://studio.edgeimpulse.com).
+- A free **Edge Impulse** account at [studio.edgeimpulse.com](https://edgeimp.com/ta-july26).
 - A recent **Chrome, Edge, Firefox or Safari** on any computer, tablet or phone on the same network as the board.
-- **Optional, to run the games on your computer:**
-  - **Python 3.10 or newer** (`python3 --version`). On macOS run `brew install python@3.13`; on Ubuntu, `sudo apt install python3 python3-venv`.
-  - **Node 18+** and Google Chrome, for the headless tests.
 
 ## 2. Get the code
 
@@ -68,6 +50,14 @@ cd workshop-wheel-motion-games
 Every command below runs from this folder. The examples use the board name `my-unoq`. Use the name shown in App Lab, or the board's IP address.
 
 ## 3. Try a game on your computer
+
+The games developed here are three:
+
+| | Game | You are holding | Gesture classes to train | Multiplayer |
+|---|---|---|---|---|
+| 🏎️ | **[Ardu Kart](ardu-kart/README.md)**: an arcade kart racer with 8 characters, 4 tracks, items, drifts and a Grand Prix | a wheel: tilt to steer | `idle`, `accelerate`, `brake`, `use_item`, `change_camera` | up to 20 browsers on one board |
+| 🎣 | **[Ardu Fishing](ardu-fishing/README.md)**: a 3-minute fishing tournament on a mountain lake, with 7 species | a rod: turn to aim the cast | `idle`, `cast`, `reel`, `unhook` | a tournament between UNO Q boards |
+| ❄️ | **[Ardu Snowball](ardu-snowball/README.md)**: a 3-minute 3 v 3 capture-the-star snowball fight | your throwing hand: tilt to aim | `idle`, `scoop`, `pack`, `throw`, `run` | 3 v 3 between UNO Q boards, bots fill the gaps |
 
 You don't need a board to look around. The games run against a desktop copy of the App Lab WebUI brick, and a simulated Modulino controller stands in for the real one.
 
@@ -84,62 +74,48 @@ devtools/run_fishing.sh    # Ardu Fishing on http://localhost:7000
 devtools/run_snowball.sh   # Ardu Snowball on http://localhost:7000
 ```
 
-**Simulated controller.** Add `ARDUKART_SIM_BOARD=1` to any of the three commands to get a simulated Modulino. It streams IMU data, class probabilities and button presses, so the Motion Lab (`/train.html`) and the controller screens behave as they do on the board. Also add the game's debug flag, `ARDUKART_DEBUG=1`, `ARDUFISH_DEBUG=1` or `ARDUSNOW_DEBUG=1`, to drive the simulated controller from a terminal:
-
-```bash
-curl "localhost:7000/api/debug/sim?tilt=0.4"         # radians, + = left
-curl "localhost:7000/api/debug/sim?gesture=cast"     # any class of the game
-curl "localhost:7000/api/debug/sim?button=0"         # 0 = A, 1 = B, 2 = C
-```
-
 Running locally, the LED matrix and the Modulinos are not used; the Bridge calls are stubbed out.
 
 ## 4. Run a game on the UNO Q
 
-Each game is an App Lab app: a folder with `app.yaml`, `python/`, `sketch/` and `assets/`. The steps are the same for all three. Replace `ardu-kart` with `ardu-fishing` or `ardu-snowball`.
+Each game is an Arduino App Lab app. Import them to Arduino App Lab via SSH or directly with Arduino App Lab.
 
-**1. Copy the app to the board.** The password is the one you set during the board's setup.
+<img width="315" alt="Create new App > Import" src="https://github.com/user-attachments/assets/c45ca959-bbbc-4a15-850c-fb52d1c5863c" />
+
+
+**Alternatively via SSH**
 
 ```bash
 scp -r ardu-kart arduino@my-unoq.local:/home/arduino/ArduinoApps/
 ```
 
-**2. Start it.** Do it from a terminal:
+And start it from the terminal:
 
 ```bash
 ssh arduino@my-unoq.local "arduino-app-cli app start user:ardu-kart"
 ```
 
-Or open **My Apps** in the App Lab desktop app, select the game and press **Run**.
+<img width="800" alt="Arduino App Lab with the 3 games" src="https://github.com/user-attachments/assets/cda660bd-f80c-47c2-9939-1e020b933340" />
+
+Open **My Apps** in the App Lab desktop app, select the game and press **Run**.
 
 - The first start downloads the bricks' containers and compiles and flashes the sketch. This can take a few minutes, and later starts take less than a minute.
 - Only one app runs on a board at a time, so starting a game stops the one that was running.
 
-**3. Play.** On any device on the same network, open **http://my-unoq.local:7000** (or `http://<board-ip>:7000`).
-
-**Check, stop and update:**
-
-```bash
-ssh arduino@my-unoq.local "arduino-app-cli app list"
-ssh arduino@my-unoq.local "arduino-app-cli app logs /home/arduino/ArduinoApps/ardu-kart --all"
-ssh arduino@my-unoq.local "arduino-app-cli app stop user:ardu-kart"
-
-# after you change the code:
-scp -r ardu-kart arduino@my-unoq.local:/home/arduino/ArduinoApps/
-ssh arduino@my-unoq.local "arduino-app-cli app stop user:ardu-kart; arduino-app-cli app start user:ardu-kart"
-```
-
-Then hard-refresh the browser (Ctrl/Cmd + Shift + R). Changes to `assets/` only need the refresh. Changes to `python/` or `sketch/` need the restart.
 
 ## 5. Train your gestures with Edge Impulse
 
-Every game has a **Motion Lab** at `http://my-unoq.local:7000/train.html`. Open it from the game's main menu with **Train your motion controller → Train your gestures**. It shows the live sensor charts and records gestures straight into your Edge Impulse project. It also trains, deploys and tests the model, all from the browser. The steps are the same for every game; only the classes change (see the [table above](#motion-games-for-the-arduino-uno-q-controlled-with-edge-impulse), or the game's README for gesture ideas).
+Every game has a **Motion Lab** at `http://my-unoq.local:7000/train.html`. 
+
+Open it from the game's main menu with **Train your motion controller → Train your gestures**. 
+
+It shows the live sensor charts and records gestures straight into your Edge Impulse project. It also trains, deploys and tests the model, all from the browser. The steps are the same for every game; only the classes change (see the [table above](#motion-games-for-the-arduino-uno-q-controlled-with-edge-impulse), or the game's README for gesture ideas).
 
 ### 5.1 Create the Edge Impulse project
 
 Use one project per game.
 
-1. Create a project at [studio.edgeimpulse.com](https://studio.edgeimpulse.com).
+1. Create a project at [studio.edgeimpulse.com](https://edgeimp.com/ta-july26).
 2. Copy its API key from **Dashboard → Keys**. It starts with `ei_`.
 3. Open **Create impulse** and set up a [continuous motion recognition](https://docs.edgeimpulse.com/docs/continuous-motion-recognition) impulse:
    - **Time series data:** window size **1000 ms**, window increase **250 ms**. The board samples at **62.5 Hz**, and Studio detects the frequency from your data.
@@ -148,6 +124,9 @@ Use one project per game.
    - Save the impulse.
 
 You can set up the impulse after uploading your first samples. The Motion Lab warns you if the impulse is missing or doesn't match the board's sample rate.
+
+<img width="800" alt="Collecting data from the Motion Lab" src="https://github.com/user-attachments/assets/2d0e479c-dd50-4c32-a2eb-2bd7d499a286" />
+
 
 ### 5.2 Record and train in the Motion Lab
 
@@ -164,6 +143,9 @@ You can set up the impulse after uploading your first samples. The Motion Lab wa
    - Make the gestures clearly different from each other.
 4. **Train:** **Train the model** retrains the impulse in Edge Impulse, and you can follow each stage in the job log.
 5. **Test:** the test panel shows the class probabilities four times a second, the top class, the recent hits, the DSP and NN timing, and which engine computed them. The confidence slider is shared with the game.
+
+<img width="800" alt="Create the impulse" src="https://github.com/user-attachments/assets/9448284e-7ae7-479a-8e03-bb5ff7a61c8c" />
+
 
 ### 5.3 Deploy the model to the board
 
@@ -203,7 +185,6 @@ While you play, the HUD in the bottom-left corner shows every class with its con
 
 ## 6. Play together
 
-- **Ardu Kart:** one board serves everyone. Every player opens `http://my-unoq.local:7000` and picks **Multiplayer**. The first player in is the host, and up to 20 players race. One player steers with the Modulino wheel and the others use keyboards, gamepads or phones.
 - **Ardu Fishing and Ardu Snowball:** every player runs the game on their own UNO Q, so everyone has a Modulino controller.
   1. One player picks **Tournament → Host on this board**. The lobby shows the board's IP address.
   2. Everyone else picks **Tournament** and types that address under **Join another board**.
@@ -286,19 +267,10 @@ The quickest way to start is to copy the game closest to your idea, rename it in
 
 Each game's README has a few more fixes specific to that game.
 
-## Repository layout
 
-```
-workshop-wheel-motion-games/
-├── ardu-kart/          ← App Lab app: the kart racer
-├── ardu-fishing/       ← App Lab app: the fishing tournament
-├── ardu-snowball/      ← App Lab app: the snowball fight
-│   ├── app.yaml        ←   metadata and bricks (arduino:web_ui, arduino:motion_detection)
-│   ├── python/         ←   main.py (server, lobby, records), controller.py (Modulinos, Motion Lab,
-│   │                       Edge Impulse API), brick_engine.py, model_installer.py
-│   ├── sketch/         ←   sketch.ino: LED matrix, Modulinos, on-device inference (MCU)
-│   └── assets/         ←   the game (index.html) and the Motion Lab (train.html)
-├── devtools/           ← local runners, stubs, simulators and headless tests
-├── .skills/            ← skills for building more games like these
-└── run_local.sh        ← run Ardu Kart on your computer
-```
+## Credits
+The initial idea of this workshop is from Jim Bruges, DevRel from Arduino.
+
+## Disclaimer
+
+Use responsibly. Do not use this code in production. Have fun!
