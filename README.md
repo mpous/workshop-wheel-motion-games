@@ -119,6 +119,10 @@ Use one project per game.
 
 1. Create a project at [studio.edgeimpulse.com](https://edgeimp.com/ta-july26).
 2. Copy its API key from **Dashboard → Keys**. It starts with `ei_`.
+
+<img width="800" alt="Create your own API key to ingest data" src="https://github.com/user-attachments/assets/d54ee504-a805-4712-8b2b-bca804601077" />
+
+
 3. Open **Create impulse** and set up a [continuous motion recognition](https://docs.edgeimpulse.com/docs/continuous-motion-recognition) impulse:
    - **Time series data:** window size **1000 ms**, window increase **250 ms**. The board samples at **62.5 Hz**, and Studio detects the frequency from your data.
    - **Processing block:** *Spectral Analysis*, with all 6 axes (accelerometer and gyroscope).
@@ -143,10 +147,23 @@ You can set up the impulse after uploading your first samples. The Motion Lab wa
    - Aim for at least 1 minute per class, for example six 10-second recordings.
    - Record plenty of **`idle`** while you aim or steer normally, so aiming never triggers a gesture.
    - Make the gestures clearly different from each other.
+
+<img width="800" alt="Edge Impulse Studio Dataset" src="https://github.com/user-attachments/assets/71b7d7f7-2284-451c-af54-31a044f57918" />
+
 4. **Train:** **Train the model** retrains the impulse in Edge Impulse, and you can follow each stage in the job log.
-5. **Test:** the test panel shows the class probabilities four times a second, the top class, the recent hits, the DSP and NN timing, and which engine computed them. The confidence slider is shared with the game.
 
 <img width="800" alt="Create the impulse" src="https://github.com/user-attachments/assets/9448284e-7ae7-479a-8e03-bb5ff7a61c8c" />
+
+<img width="800" alt="Parameters" src="https://github.com/user-attachments/assets/86fb0859-cf67-4802-bcca-3e81f4c163ec" />
+
+<img width="800" alt="Generate Features" src="https://github.com/user-attachments/assets/ff9e2bd5-c3f8-4751-addb-9dac918ad85f" />
+
+<img width="800" alt="Train the ML motion model" src="https://github.com/user-attachments/assets/8cc0dd42-e443-4b5d-bc14-1b529e589e4e" />
+
+
+5. **Test:** the test panel shows the class probabilities four times a second, the top class, the recent hits, the DSP and NN timing, and which engine computed them. The confidence slider is shared with the game.
+
+<img width="800" alt="Test the model" src="https://github.com/user-attachments/assets/9664ae53-186f-4812-89ff-d12494e5917b" />
 
 
 ### 5.3 Deploy the model to the board
