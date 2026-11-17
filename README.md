@@ -15,7 +15,7 @@ The Arduino UNO Q runs the whole game. Its Linux side serves the game and the tr
 
 ## 1. What you need
 
-### Hardware (per player)
+### Hardware 
 
 | Part | Role in the games |
 |---|---|
@@ -80,7 +80,7 @@ Running locally, the LED matrix and the Modulinos are not used; the Bridge calls
 
 Each game is an Arduino App Lab app. Import them to Arduino App Lab via SSH or directly with Arduino App Lab.
 
-<img width="315" alt="Create new App > Import" src="https://github.com/user-attachments/assets/c45ca959-bbbc-4a15-850c-fb52d1c5863c" />
+<img width="315" alt="Create new App" src="https://github.com/user-attachments/assets/c45ca959-bbbc-4a15-850c-fb52d1c5863c" />
 
 
 **Alternatively via SSH**
@@ -151,7 +151,9 @@ You can set up the impulse after uploading your first samples. The Motion Lab wa
 
 There are two gesture engines. With **Gesture engine → Auto**, the game uses the MCU model if the sketch has one, and otherwise the brick. You can also pick one in the Motion Lab or in the game.
 
-**Option A: Motion detection brick (recommended).** The App Lab `arduino:motion_detection` brick runs the model (`.eim`) in its own container on the Linux side. The Python app streams the Modulino Movement samples to it and gets all the class probabilities back. You can swap models from App Lab without recompiling anything.
+<img width="800" alt="Download and select the Custom ML model" src="https://github.com/user-attachments/assets/718e81e3-b9a5-445e-901b-d6cc6b2a96e6" />
+
+The App Lab `arduino:motion_detection` brick runs the model (`.eim`) in its own container on the Linux side. The Python app streams the Modulino Movement samples to it and gets all the class probabilities back. You can swap models from App Lab without recompiling anything.
 
 1. In Edge Impulse Studio open **Deployment**, choose **Arduino UNO Q**, press **Build**, then **Go to Arduino**.
 2. In App Lab, open the game and click the **Motion detection** brick. Under **AI models**, press **Download** next to your project's model.
@@ -159,18 +161,6 @@ There are two gesture engines. With **Gesture engine → Auto**, the game uses t
 
 The model needs the accelerometer axes, and optionally the gyroscope axes. The app resamples the data to the model's frequency and converts it to m/s² and deg/s.
 
-**Option B: on the MCU.** In the Motion Lab:
-
-- **Build & install** builds an Arduino library with the EON compiler and installs it into the app's sketch.
-- **Train + build + install** does everything in one go.
-- You can also install a library `.zip` downloaded from Studio (**Deployment → Arduino library**) under *Manual model files*.
-
-The model is compiled into the sketch, so **restart the app** afterwards. The recompile takes 1 to 3 minutes. You can also install a model from a terminal:
-
-```bash
-python3 ardu-kart/python/model_installer.py ~/Downloads/my-project-arduino-1.0.0.zip
-python3 ardu-kart/python/model_installer.py --remove     # back to no model
-```
 
 ### 5.4 Map the classes to actions
 
@@ -182,6 +172,9 @@ Back in the game, open **Train your motion controller**. It shows the live class
 - **Gesture → action:** map every class your model outputs to an action in the game. Defaults are picked from the label names, so a class named `throw` also casts in Ardu Fishing.
 
 While you play, the HUD in the bottom-left corner shows every class with its confidence.
+
+<img width="800" alt="HUD in the bottom-left" src="https://github.com/user-attachments/assets/c2acd70c-9dd6-48f0-9f77-bfa952ad4dfb" />
+
 
 ## 6. Play together
 
