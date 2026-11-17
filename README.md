@@ -107,9 +107,13 @@ Open **My Apps** in the App Lab desktop app, select the game and press **Run**.
 
 ## 5. Train your gestures with Edge Impulse
 
-Every game has a **Motion Lab** at `http://my-unoq.local:7000/train.html`. 
+Every game has a **Motion Lab** at `http://my-unoq.local:7000/train.html`
+
+<img width="800" alt="Train your motion controller" src="https://github.com/user-attachments/assets/02e43598-e4f2-49c7-b76b-92ca20960c0b" />
 
 Open it from the game's main menu with **Train your motion controller → Train your gestures**. 
+
+<img width="800" alt="Train your gestures" src="https://github.com/user-attachments/assets/8b9ec7a6-5e43-42a4-9b6a-a3ca1162ac92" />
 
 It shows the live sensor charts and records gestures straight into your Edge Impulse project. It also trains, deploys and tests the model, all from the browser. The steps are the same for every game; only the classes change (see the [table above](#motion-games-for-the-arduino-uno-q-controlled-with-edge-impulse), or the game's README for gesture ideas).
 
