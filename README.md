@@ -34,6 +34,8 @@ The Arduino UNO Q runs the whole game. Its Linux side serves the game and the tr
 - Every Modulino is optional and hot-pluggable. Without Buttons or a model, the games fall back to sensible defaults, and a keyboard, gamepad or touch screen always works too.
 - For the tournaments in Ardu Fishing every player needs their own kit.
 
+If you would like to print or laser cut your own wheel board, Jim shared more details [here](https://github.com/jimbruges/workshop-racing-telemetry-unoq/tree/main/hardware).
+
 ### Software
 
 - **Arduino App Lab**, with the UNO Q set up and connected to your Wi-Fi. The board's first-time setup happens in App Lab.
@@ -262,7 +264,7 @@ Each game's README has a few more fixes specific to that game.
 
 
 ## Credits
-The initial idea of this workshop is from Jim Bruges, DevRel from Arduino.
+The initial idea of this workshop is from Jim Bruges, DevRel from Arduino. Thanks for the great workshop. [Find more details here](https://github.com/jimbruges/workshop-racing-telemetry-unoq/).
 
 ## Disclaimer
 
