@@ -7,7 +7,7 @@ This repositoy has been built for a workshop during the Talent Arena Upskilling 
 Here you will find three 3D browser games where your hands are the controller. An Arduino UNO Q with three Modulinos becomes a steering wheel, a fishing rod or a snowball-throwing hand:
 
 - **Aiming and steering:** the gyroscope and accelerometer.
-- **Actions:** gestures recognised by a motion model that you record and train with [Edge Impulse]](https://edgeimp.com/ta-july26), right from the board.
+- **Actions:** gestures recognised by a motion model that you record and train with [Edge Impulse](https://edgeimp.com/ta-july26), right from the board.
 
 The Arduino UNO Q runs the whole game. Its Linux side serves the game and the training page, and runs the lobby. Its microcontroller reads the Modulinos and drives the LED matrix. Players open the game in any browser on the same Wi-Fi.
 
